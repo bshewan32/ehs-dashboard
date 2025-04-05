@@ -55,4 +55,15 @@ router.post('/', async (req, res) => {
   }
 });
 
+// GET /api/reports - Fetch all reports
+router.get('/', async (req, res) => {
+  try {
+    const reports = await Report.find().sort({ createdAt: -1 });
+    res.json(reports);
+  } catch (err) {
+    console.error('Error fetching reports:', err);
+    res.status(500).json({ message: 'Failed to fetch reports.' });
+  }
+});
+
 module.exports = router;
