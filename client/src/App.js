@@ -1,5 +1,6 @@
 import React from 'react';
 import './App.css';
+import Dashboard from './Dashboard';
 
 function App() {
   return (
@@ -9,9 +10,7 @@ function App() {
         <p className="text-sm text-gray-500">Welcome to your environmental health and safety dashboard.</p>
       </header>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-700">This is where your dashboard content will appear.</p>
-      </div>
+      <Dashboard />
     </div>
   );
 }
