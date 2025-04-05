@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const Report = require('../models/Report');
 
 // GET /metrics/summary
 router.get('/metrics/summary', (req, res) => {
@@ -42,9 +43,16 @@ router.get('/metrics/summary', (req, res) => {
 });
 
 // POST /
-router.post('/', (req, res) => {
-  console.log('Received new report:', req.body);
-  res.status(201).json({ message: 'Report received and logged.' });
+router.post('/', async (req, res) => {
+  try {
+    const newReport = new Report(req.body);
+    await newReport.save();
+    console.log('✅ Report saved to MongoDB');
+    res.status(201).json({ message: 'Report saved to database.' });
+  } catch (error) {
+    console.error('❌ Error saving report:', error);
+    res.status(500).json({ message: 'Failed to save report.' });
+  }
 });
 
 module.exports = router;
