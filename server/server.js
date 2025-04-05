@@ -7,8 +7,13 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
 app.use(express.json());
+
+// Enable CORS for your frontend
+app.use(cors({
+  origin: 'https://ehs-dashboard.vercel.app',
+  credentials: true,
+}));
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI, {
