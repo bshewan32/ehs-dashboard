@@ -1,7 +1,7 @@
 import React from 'react';
 import './App.css';
 import Dashboard from './pages/Dashboard';
-import ReportForm from './forms/ReportForm';
+import ReportForm from './components/forms/ReportForm';
 
 function App() {
   return (
