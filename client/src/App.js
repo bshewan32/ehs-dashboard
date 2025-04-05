@@ -1,26 +1,16 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+    <div className="min-h-screen bg-gray-100 p-6">
+      <header className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-800">EHS Dashboard</h1>
+        <p className="text-sm text-gray-500">Welcome to your environmental health and safety dashboard.</p>
       </header>
-      <div className="bg-blue-500 text-white p-6 rounded-lg">
-        Tailwind is working!
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <p className="text-gray-700">This is where your dashboard content will appear.</p>
       </div>
     </div>
   );
