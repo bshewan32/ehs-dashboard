@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
 });
 
 // Placeholder for routes
-// app.use('/api/reports', require('./routes/reports'));
+app.use('/api/reports', require('./routes/reports'));
 // app.use('/api/auth', require('./routes/auth'));
 
 app.listen(PORT, () => {

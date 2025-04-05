@@ -1,6 +1,7 @@
 import React from 'react';
 import './App.css';
 import Dashboard from './pages/Dashboard';
+import ReportForm from './forms/ReportForm';
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
       </header>
 
       <Dashboard />
+      <ReportForm />
     </div>
   );
 }
