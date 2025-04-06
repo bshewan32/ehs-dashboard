@@ -74,11 +74,20 @@ export const fetchInspections = async () => {
 // Submit a new report
 export const submitReport = async (reportData) => {
   try {
+    console.log('Submitting report to:', `${api_url}/api/reports`);
+    console.log('Report data:', JSON.stringify(reportData, null, 2));
+    
     const response = await fetch(`${api_url}/api/reports`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(reportData),
     });
+    
+    if (!response.ok) {
+      // Try to get error details from the response
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Server returned ${response.status} ${response.statusText}`);
+    }
     
     return handleResponse(response);
   } catch (error) {
