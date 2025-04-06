@@ -33,8 +33,23 @@ router.get('/metrics/summary', async (req, res) => {
       return res.status(404).json({ message: 'No reports found' });
     }
     
-    // Extract and return metrics
-    res.json(latestReport.metrics || {});
+    // Ensure metrics has the right structure before returning
+    const metrics = latestReport.metrics || {};
+    
+    // Make sure leading.kpis exists and is accessible
+    if (!metrics.leading) {
+      metrics.leading = {};
+    }
+    
+    if (!metrics.leading.kpis) {
+      metrics.leading.kpis = [];
+    }
+    
+    // Log the KPIs for debugging
+    console.log('KPIs in metrics summary:', metrics.leading.kpis);
+    
+    // Return the structured metrics
+    res.json(metrics);
   } catch (err) {
     console.error('Error fetching metrics summary:', err.message);
     res.status(500).json({ message: 'Server error' });
