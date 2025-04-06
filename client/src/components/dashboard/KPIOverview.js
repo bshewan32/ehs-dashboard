@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchReports } from './services/api';
+import { fetchReports } from '../services/api';
 
 const KPIOverview = () => {
   const [kpis, setKpis] = useState([]);

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
-import { fetchReports } from './services/api';
+import { fetchReports } from '../services/api';
 
 const TrendCharts = () => {
   const [incidentData, setIncidentData] = useState([]);
