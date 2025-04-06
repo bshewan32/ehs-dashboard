@@ -17,6 +17,11 @@ const ReportSchema = new mongoose.Schema({
   metrics: {
     totalIncidents: { type: Number, default: 0 },
     totalNearMisses: { type: Number, default: 0 },
+    firstAidCount: { type: Number, default: 0 },
+    medicalTreatmentCount: { type: Number, default: 0 },
+    trainingCompliance: { type: Number, default: 0 },
+    riskScore: { type: Number, default: 0 },
+    kpis: { type: [mongoose.Schema.Types.Mixed], default: [] }
   },
 }, {
   timestamps: true,

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
+const api_url = process.env.REACT_APP_API_URL;
 
 export default function InspectionsPage() {
   const [inspections, setInspections] = useState([]);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/api/inspections`)
+    fetch(`${api_url}/api/inspections`)
       .then(res => res.json())
       .then(data => setInspections(data))
       .catch(err => console.error('Error fetching inspections:', err));

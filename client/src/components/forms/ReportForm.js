@@ -7,6 +7,10 @@ export default function ReportForm() {
     reportType: 'Monthly',
     totalIncidents: 0,
     totalNearMisses: 0,
+    firstAidCount: 0,
+    medicalTreatmentCount: 0,
+    trainingCompliance: 0,
+    riskScore: 0,
   });
 
   const handleChange = (e) => {
@@ -24,6 +28,10 @@ export default function ReportForm() {
       metrics: {
         totalIncidents: parseInt(formData.totalIncidents),
         totalNearMisses: parseInt(formData.totalNearMisses),
+        firstAidCount: parseInt(formData.firstAidCount),
+        medicalTreatmentCount: parseInt(formData.medicalTreatmentCount),
+        trainingCompliance: parseFloat(formData.trainingCompliance),
+        riskScore: parseFloat(formData.riskScore),
       },
     };
 
@@ -84,6 +92,48 @@ export default function ReportForm() {
           name="totalNearMisses"
           value={formData.totalNearMisses}
           onChange={handleChange}
+          className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">First Aid Cases</label>
+        <input
+          type="number"
+          name="firstAidCount"
+          value={formData.firstAidCount}
+          onChange={handleChange}
+          className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Medical Treatments</label>
+        <input
+          type="number"
+          name="medicalTreatmentCount"
+          value={formData.medicalTreatmentCount}
+          onChange={handleChange}
+          className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Training Compliance (%)</label>
+        <input
+          type="number"
+          name="trainingCompliance"
+          value={formData.trainingCompliance}
+          onChange={handleChange}
+          step="0.1"
+          className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Average Risk Score</label>
+        <input
+          type="number"
+          name="riskScore"
+          value={formData.riskScore}
+          onChange={handleChange}
+          step="0.1"
           className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
         />
       </div>

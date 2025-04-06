@@ -5,13 +5,15 @@ import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
 
+const api_url = process.env.REACT_APP_API_URL;
+
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
 
   useEffect(() => {
     async function fetchMetrics() {
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/api/reports/metrics/summary`);
+        const response = await fetch(`${api_url}/api/reports/metrics/summary`);
         const data = await response.json();
         setMetrics(data);
       } catch (error) {
