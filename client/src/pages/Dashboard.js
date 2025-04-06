@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import MetricsOverview from './MetricsOverview';
-import KPIOverview from './KPIOverview';
-import AIPanel from './AIPanel';
-import TrendCharts from './TrendCharts';
+import MetricsOverview from '../components/dashboard/MetricsOverview';
+import KPIOverview from '../components/dashboard/KPIOverview';
+import AIPanel from '../components/dashboard/AIPanel';
+import TrendCharts from '../components/dashboard/TrendCharts';
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
