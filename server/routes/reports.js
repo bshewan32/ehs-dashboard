@@ -75,33 +75,48 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Please include all required fields' });
     }
 
+    // Log the incoming metrics structure for debugging
+    console.log('Incoming metrics:', JSON.stringify(metrics, null, 2));
+
+    // Ensure proper metrics structure, even if parts are missing in request
+    const structuredMetrics = {
+      // Lagging indicators
+      lagging: {
+        incidentCount: metrics?.lagging?.incidentCount || 0,
+        nearMissCount: metrics?.lagging?.nearMissCount || 0,
+        firstAidCount: metrics?.lagging?.firstAidCount || 0,
+        medicalTreatmentCount: metrics?.lagging?.medicalTreatmentCount || 0,
+        lostTimeInjuryCount: metrics?.lagging?.lostTimeInjuryCount || 0
+      },
+      // Leading indicators
+      leading: {
+        trainingCompleted: metrics?.leading?.trainingCompleted || 0,
+        inspectionsCompleted: metrics?.leading?.inspectionsCompleted || 0,
+        // Most important: ensure KPIs are nested correctly
+        kpis: metrics?.leading?.kpis || []
+      },
+      // Summary metrics
+      trainingCompliance: metrics?.trainingCompliance || 0,
+      riskScore: metrics?.riskScore || 0
+    };
+    
+    // Log the structured metrics for debugging
+    console.log('Structured metrics for saving:', JSON.stringify(structuredMetrics, null, 2));
+
     // Create new report with proper structure
     const newReport = new Report({
       companyName,
       reportPeriod,
       reportType,
-      metrics: {
-        // Ensure metrics has proper structure even if some fields are missing
-        lagging: {
-          incidentCount: metrics?.lagging?.incidentCount || 0,
-          nearMissCount: metrics?.lagging?.nearMissCount || 0,
-          firstAidCount: metrics?.lagging?.firstAidCount || 0,
-          medicalTreatmentCount: metrics?.lagging?.medicalTreatmentCount || 0,
-          lostTimeInjuryCount: metrics?.lagging?.lostTimeInjuryCount || 0
-        },
-        leading: {
-          trainingCompleted: metrics?.leading?.trainingCompleted || 0,
-          inspectionsCompleted: metrics?.leading?.inspectionsCompleted || 0,
-          kpis: metrics?.leading?.kpis || []
-        },
-        // Handle flat metrics fields
-        trainingCompliance: metrics?.trainingCompliance || 0,
-        riskScore: metrics?.riskScore || 0
-      }
+      metrics: structuredMetrics
     });
 
     // Save to database
     const savedReport = await newReport.save();
+    
+    // Log the saved report
+    console.log('Saved report structure:', JSON.stringify(savedReport, null, 2));
+    
     res.status(201).json({ 
       message: 'Report created successfully', 
       report: savedReport 
