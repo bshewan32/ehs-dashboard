@@ -10,7 +10,7 @@ function App() {
         <h1 className="text-3xl font-bold text-gray-800">EHS Dashboard</h1>
         <p className="text-sm text-gray-500">Welcome to your environmental health and safety dashboard.</p>
       </header>
-
+      <Route path="/report/new" element={<ReportForm />} />
       <Dashboard />
       <ReportForm />
     </div>

@@ -32,7 +32,7 @@ app.get('/', (req, res) => {
 
 // Placeholder for routes
 app.use('/api/reports', require('./routes/reports'));
-// app.use('/api/auth', require('./routes/auth'));
+app.use('/api/inspections', require('./routes/inspections'));
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

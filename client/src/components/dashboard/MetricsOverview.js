@@ -26,6 +26,8 @@ const MetricsOverview = () => {
       <div className="grid grid-cols-2 gap-4">
         <div><strong>Incidents:</strong> {metrics.lagging?.incidentCount ?? '-'}</div>
         <div><strong>Near Misses:</strong> {metrics.lagging?.nearMissCount ?? '-'}</div>
+        <div><strong>First Aid Cases:</strong> {metrics.lagging?.firstAidCount ?? '-'}</div>
+        <div><strong>Medical Treatments:</strong> {metrics.lagging?.medicalTreatmentCount ?? '-'}</div>
         <div><strong>Training Completed:</strong> {metrics.leading?.trainingCompleted ?? '-'}</div>
         <div><strong>Inspections Completed:</strong> {metrics.leading?.inspectionsCompleted ?? '-'}</div>
       </div>
