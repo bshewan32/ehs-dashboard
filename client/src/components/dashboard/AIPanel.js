@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchReports } from '../../services/api';
+import { fetchReports } from './services/api';
 
 const AIPanel = () => {
   const [recommendations, setRecommendations] = useState([]);
