@@ -3,43 +3,47 @@ const router = express.Router();
 const Report = require('../models/Report');
 
 // GET /metrics/summary
-router.get('/metrics/summary', (req, res) => {
-  res.json({
-    totalIncidents: 5,
-    totalNearMisses: 3,
-    firstAidCount: 1,
-    medicalTreatmentCount: 2,
-    trainingCompliance: 92,
-    riskScore: 4.3,
-    kpis: [
-      {
-        name: 'Near Miss Reporting Rate',
-        description: 'Number of near misses reported per 100,000 hrs worked',
-        target: 10,
-        actual: 6,
-        unit: 'per 100K hrs'
-      },
-      {
-        name: 'Critical Risk Verification',
-        description: 'Percentage of critical risk tasks verified',
-        target: 100,
-        actual: 85,
-        unit: '%'
-      },
-      {
-        name: 'Electrical Safety Compliance',
-        description: 'Compliance with electrical work requirements',
-        target: 100,
-        actual: 95,
-        unit: '%'
+router.get('/metrics/summary', async (req, res) => {
+  try {
+    const reports = await Report.find();
+
+    let summary = {
+      totalIncidents: 0,
+      totalNearMisses: 0,
+      firstAidCount: 0,
+      medicalTreatmentCount: 0,
+      trainingCompliance: 0,
+      riskScore: 0,
+      kpis: [],
+      aiRecommendations: [] // This can be filled by AI logic later
+    };
+
+    reports.forEach((report) => {
+      const metrics = report.metrics || {};
+      summary.totalIncidents += metrics.totalIncidents || 0;
+      summary.totalNearMisses += metrics.totalNearMisses || 0;
+      summary.firstAidCount += metrics.firstAidCount || 0;
+      summary.medicalTreatmentCount += metrics.medicalTreatmentCount || 0;
+      summary.trainingCompliance += metrics.trainingCompliance || 0;
+      summary.riskScore += metrics.riskScore || 0;
+
+      if (Array.isArray(metrics.kpis)) {
+        summary.kpis.push(...metrics.kpis);
       }
-    ],
-    aiRecommendations: [
-      'Increase near miss reporting in high-risk areas.',
-      'Review electrical safety training for gaps.',
-      'Audit critical risk tasks more frequently.'
-    ]
-  });
+    });
+
+    // Average values where appropriate
+    const reportCount = reports.length;
+    if (reportCount > 0) {
+      summary.trainingCompliance = +(summary.trainingCompliance / reportCount).toFixed(1);
+      summary.riskScore = +(summary.riskScore / reportCount).toFixed(1);
+    }
+
+    res.json(summary);
+  } catch (err) {
+    console.error('Error generating metrics summary:', err);
+    res.status(500).json({ message: 'Failed to generate summary.' });
+  }
 });
 
 // POST /
