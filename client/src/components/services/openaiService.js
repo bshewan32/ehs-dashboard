@@ -1,6 +1,9 @@
 // client/src/components/services/openaiService.js
 const api_url = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
+/**
+ * Generate safety insights using OpenAI
+ */
 export const generateSafetyInsights = async (metricsData, companyName) => {
   try {
     // Set up headers
