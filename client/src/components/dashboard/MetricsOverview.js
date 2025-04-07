@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchReports } from '../services/api';
 
-const MetricsOverview = ({ metrics }) => {
+const MetricsOverview = ({ metrics, companyName }) => {
   const [localMetrics, setLocalMetrics] = useState(null);
 
   useEffect(() => {
@@ -15,7 +15,18 @@ const MetricsOverview = ({ metrics }) => {
     const getMetrics = async () => {
       try {
         const reports = await fetchReports();
-        const mostRecent = reports[reports.length - 1]; // latest report
+        
+        // Filter by company name if provided
+        let filteredReports = reports;
+        if (companyName) {
+          filteredReports = reports.filter(report => report.companyName === companyName);
+        }
+        
+        // Use the most recent report
+        const mostRecent = filteredReports.length > 0 
+          ? filteredReports[filteredReports.length - 1] 
+          : null;
+          
         setLocalMetrics(mostRecent?.metrics || {});
       } catch (err) {
         console.error('Error loading metrics:', err);
@@ -23,7 +34,7 @@ const MetricsOverview = ({ metrics }) => {
     };
 
     getMetrics();
-  }, [metrics]);
+  }, [metrics, companyName]);
 
   if (!localMetrics) return <div>Loading metrics...</div>;
 
@@ -44,7 +55,10 @@ const MetricsOverview = ({ metrics }) => {
 
   return (
     <div className="p-4 bg-white rounded shadow">
-      <h2 className="text-xl font-semibold mb-4">Lagging & Leading Indicators</h2>
+      <h2 className="text-xl font-semibold mb-4">
+        Lagging & Leading Indicators
+        {companyName && <span className="text-blue-600 ml-2">({companyName})</span>}
+      </h2>
       <div className="grid grid-cols-2 gap-4">
         <div><strong>Incidents:</strong> {incidentCount}</div>
         <div><strong>Near Misses:</strong> {nearMissCount}</div>

@@ -4,7 +4,9 @@ import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
-import { fetchMetricsSummary } from '../components/services/api';
+import CompanyFilter from '../components/dashboard/CompanyFilter';
+import CompanyComparison from '../components/dashboard/CompanyComparison';
+import { fetchReports, fetchMetricsSummary, fetchCompanyMetrics } from '../components/services/api';
 
 const api_url = process.env.REACT_APP_API_URL;
 
@@ -12,6 +14,8 @@ export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [reports, setReports] = useState([]);
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -38,14 +42,24 @@ export default function Dashboard() {
     },
   ];
 
-  useEffect(() => {
-    async function fetchMetrics() {
-      try {
-        setLoading(true);
-        
-        // Use our API service instead of direct fetch
+  // Handle company filter change
+  const handleCompanyChange = (company) => {
+    setSelectedCompany(company);
+    processMetricsForCompany(company);
+  };
+
+        // Process metrics based on selected company
+  const processMetricsForCompany = async (company) => {
+    if (!reports || reports.length === 0) return;
+
+    try {
+      if (company) {
+        // Use the specialized company metrics API
+        const companyMetrics = await fetchCompanyMetrics(company);
+        setMetrics(companyMetrics);
+      } else {
+        // Use the general metrics summary API
         const data = await fetchMetricsSummary();
-        console.log('Fetched metrics:', data);
         
         // Create a properly structured metrics object
         const processedMetrics = {
@@ -77,44 +91,102 @@ export default function Dashboard() {
         
         // Store processed metrics
         setMetrics(processedMetrics);
+      }
+    } catch (error) {
+      console.error('Error processing metrics for company:', error);
+      setMetrics(createDefaultMetrics());
+    }
+  };
+
+  // Create default metrics object for fallback
+  const createDefaultMetrics = () => {
+    return {
+      totalIncidents: 0,
+      totalNearMisses: 0,
+      firstAidCount: 0,
+      medicalTreatmentCount: 0,
+      trainingCompliance: 0,
+      riskScore: 0,
+      lagging: {
+        incidentCount: 0,
+        nearMissCount: 0,
+        firstAidCount: 0,
+        medicalTreatmentCount: 0
+      },
+      leading: {
+        trainingCompleted: 0,
+        inspectionsCompleted: 0,
+        kpis: defaultKpis
+      }
+    };
+  };
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        
+        // Fetch all reports first
+        const reportData = await fetchReports();
+        setReports(reportData);
+        
+        if (selectedCompany) {
+          // Process metrics for selected company
+          processMetricsForCompany(selectedCompany);
+        } else {
+          // Use the API service to get metrics summary
+          const data = await fetchMetricsSummary();
+          
+          // Create a properly structured metrics object
+          const processedMetrics = {
+            // Ensure these properties exist with fallbacks
+            totalIncidents: data.totalIncidents ?? 0,
+            totalNearMisses: data.totalNearMisses ?? 0,
+            firstAidCount: data.firstAidCount ?? 0,
+            medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
+            trainingCompliance: data.trainingCompliance ?? 0,
+            riskScore: data.riskScore ?? 0,
+            
+            // Ensure the leading object exists
+            leading: {
+              ...data.leading,
+              // Either use existing KPIs or defaults
+              kpis: (data.leading?.kpis && data.leading.kpis.length > 0) 
+                ? data.leading.kpis 
+                : defaultKpis
+            },
+            
+            // Create lagging metrics if they don't exist
+            lagging: data.lagging || {
+              incidentCount: data.totalIncidents ?? 0,
+              nearMissCount: data.totalNearMisses ?? 0,
+              firstAidCount: data.firstAidCount ?? 0,
+              medicalTreatmentCount: data.medicalTreatmentCount ?? 0
+            }
+          };
+          
+          // Store processed metrics
+          setMetrics(processedMetrics);
+        }
+        
         setError(null);
       } catch (error) {
-        console.error('Error fetching metrics:', error);
+        console.error('Error fetching data:', error);
         setError(error.message);
-        
-        // Create fallback metrics 
-        setMetrics({
-          totalIncidents: 0,
-          totalNearMisses: 0,
-          firstAidCount: 0,
-          medicalTreatmentCount: 0,
-          trainingCompliance: 0,
-          riskScore: 0,
-          lagging: {
-            incidentCount: 0,
-            nearMissCount: 0,
-            firstAidCount: 0,
-            medicalTreatmentCount: 0
-          },
-          leading: {
-            trainingCompleted: 0,
-            inspectionsCompleted: 0,
-            kpis: defaultKpis
-          }
-        });
+        setMetrics(createDefaultMetrics());
       } finally {
         setLoading(false);
       }
     }
 
-    fetchMetrics();
+    fetchData();
     
-    // Refresh metrics every 30 seconds
-    const intervalId = setInterval(fetchMetrics, 30000);
+    // Refresh data every 30 seconds
+    const intervalId = setInterval(fetchData, 30000);
     
     // Clean up interval on unmount
     return () => clearInterval(intervalId);
-  }, []);
+  }, [selectedCompany]);
 
   return (
     <div className="space-y-6 p-6">
@@ -139,12 +211,27 @@ export default function Dashboard() {
         </div>
       ) : null}
 
+      <div className="bg-white p-4 rounded shadow">
+        <CompanyFilter 
+          onChange={handleCompanyChange}
+          selectedCompany={selectedCompany}
+        />
+        
+        {selectedCompany && (
+          <div className="mt-2 text-sm text-blue-600">
+            Showing metrics for: <span className="font-semibold">{selectedCompany}</span>
+          </div>
+        )}
+      </div>
+
       <div className="space-y-6">
         {/* Pass the metrics explicitly to each component */}
-        <MetricsOverview metrics={metrics} />
-        <KPIOverview metrics={metrics} />
-        <TrendCharts />
-        <AIPanel metrics={metrics} />
+        <MetricsOverview metrics={metrics} companyName={selectedCompany} />
+        <KPIOverview metrics={metrics} companyName={selectedCompany} />
+        <TrendCharts selectedCompany={selectedCompany} />
+        <AIPanel metrics={metrics} companyName={selectedCompany} />
+        {/* Only show company comparison when not filtering to a specific company */}
+        {!selectedCompany && <CompanyComparison />}
       </div>
     </div>
   );

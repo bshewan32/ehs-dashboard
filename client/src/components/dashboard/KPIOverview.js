@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchReports } from '../services/api';
 
-const KPIOverview = ({ metrics }) => {
+const KPIOverview = ({ metrics, companyName }) => {
   const [kpis, setKpis] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -60,8 +60,20 @@ const KPIOverview = ({ metrics }) => {
         const reports = await fetchReports();
         console.log('Fetched reports for KPIs:', reports.length);
         
-        if (reports && reports.length > 0) {
-          const mostRecent = reports[reports.length - 1];
+        // Filter by company if specified
+        let filteredReports = reports;
+        if (companyName) {
+          filteredReports = reports.filter(report => report.companyName === companyName);
+          console.log(`Filtered to ${filteredReports.length} reports for company: ${companyName}`);
+        }
+        
+        if (filteredReports && filteredReports.length > 0) {
+          // Sort reports by date to get the most recent
+          filteredReports.sort((a, b) => {
+            return new Date(b.createdAt || b.updatedAt || 0) - new Date(a.createdAt || a.updatedAt || 0);
+          });
+          
+          const mostRecent = filteredReports[0];
           
           // Try different possible locations of KPI data
           if (mostRecent?.metrics?.leading?.kpis && mostRecent.metrics.leading.kpis.length > 0) {
@@ -88,7 +100,7 @@ const KPIOverview = ({ metrics }) => {
     };
 
     loadKpis();
-  }, [metrics]);
+  }, [metrics, companyName]); // Add companyName as dependency to reload when it changes
 
   if (loading) {
     return (
@@ -101,7 +113,10 @@ const KPIOverview = ({ metrics }) => {
 
   return (
     <div className="p-4 bg-white rounded shadow">
-      <h2 className="text-xl font-semibold mb-2">KPI Metrics</h2>
+      <h2 className="text-xl font-semibold mb-2">
+        KPI Metrics
+        {companyName && <span className="text-blue-600 ml-2">({companyName})</span>}
+      </h2>
       {(!kpis || kpis.length === 0) ? (
         <p className="text-gray-600 italic">No KPI data available. Using default values.</p>
       ) : (

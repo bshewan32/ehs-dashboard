@@ -30,9 +30,10 @@ app.get('/', (req, res) => {
   res.send('EHS Dashboard API is running');
 });
 
-// Placeholder for routes
+// Routes
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/inspections', require('./routes/inspections'));
+app.use('/api/ai', require('./routes/ai')); // Add the new AI route
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
