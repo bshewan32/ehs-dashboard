@@ -225,265 +225,182 @@ const handleSubmit = async (e) => {
 };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-lg shadow p-6">
-      <div className="border-b pb-4 mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Basic Information</h2>
-        <p className="text-sm text-gray-500">Enter general report details</p>
+  <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-lg shadow p-6">
+    {/* Basic Info */}
+    <div className="border-b pb-4 mb-6">
+      <h2 className="text-xl font-bold text-gray-800">Basic Information</h2>
+      <p className="text-sm text-gray-500">Enter general report details</p>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Company Name</label>
+        <input
+          type="text"
+          name="companyName"
+          value={formData.companyName}
+          onChange={handleChange}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+          required
+        />
       </div>
-      
-      {/* Basic Information Section */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Report Period</label>
+        <input
+          type="text"
+          name="reportPeriod"
+          value={formData.reportPeriod}
+          onChange={handleChange}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Report Type</label>
+        <select
+          name="reportType"
+          value={formData.reportType}
+          onChange={handleChange}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+        >
+          <option value="Monthly">Monthly</option>
+          <option value="Quarterly">Quarterly</option>
+          <option value="Annual">Annual</option>
+        </select>
+      </div>
+    </div>
+
+    {/* Lagging Indicators */}
+    <div className="pt-6 border-t mt-8">
+      <h2 className="text-xl font-bold text-gray-800 mb-4">Lagging Indicators</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          { label: 'Incidents', name: 'metrics.lagging.incidentCount' },
+          { label: 'Near Misses', name: 'metrics.lagging.nearMissCount' },
+          { label: 'First Aid Cases', name: 'metrics.lagging.firstAidCount' },
+          { label: 'Medical Treatments', name: 'metrics.lagging.medicalTreatmentCount' },
+          { label: 'Lost Time Injuries', name: 'metrics.lagging.lostTimeInjuryCount' },
+        ].map((item) => (
+          <div key={item.name}>
+            <label className="block text-sm font-medium text-gray-700">{item.label}</label>
+            <input
+              type="number"
+              name={item.name}
+              value={item.name.split('.').reduce((o, i) => o?.[i], formData)}
+              onChange={handleChange}
+              min="0"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {/* Leading Indicators */}
+    <div className="pt-6 border-t mt-8">
+      <h2 className="text-xl font-bold text-gray-800 mb-4">Leading Indicators</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Company Name</label>
-          <input
-            type="text"
-            name="companyName"
-            value={formData.companyName}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Report Period</label>
-          <input
-            type="text"
-            name="reportPeriod"
-            value={formData.reportPeriod}
-            onChange={handleChange}
-            placeholder="e.g. Jan 2025"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Report Type</label>
-          <select
-            name="reportType"
-            value={formData.reportType}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-          >
-            <option value="Monthly">Monthly</option>
-            <option value="Quarterly">Quarterly</option>
-            <option value="Annual">Annual</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Lagging Indicators Section */}
-      <div className="pt-6 border-t mt-8">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Lagging Indicators</h2>
-        <p className="text-sm text-gray-500 mb-4">Enter incident and hazard data</p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Incidents</label>
-            <input
-              type="number"
-              name="metrics.lagging.incidentCount"
-              value={formData.metrics.lagging.incidentCount}
-              onChange={handleChange}
-              min="0"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Near Misses</label>
-            <input
-              type="number"
-              name="metrics.lagging.nearMissCount"
-              value={formData.metrics.lagging.nearMissCount}
-              onChange={handleChange}
-              min="0"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">First Aid Cases</label>
-            <input
-              type="number"
-              name="metrics.lagging.firstAidCount"
-              value={formData.metrics.lagging.firstAidCount}
-              onChange={handleChange}
-              min="0"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Medical Treatments</label>
-            <input
-              type="number"
-              name="metrics.lagging.medicalTreatmentCount"
-              value={formData.metrics.lagging.medicalTreatmentCount}
-              onChange={handleChange}
-              min="0"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Lost Time Injuries</label>
-            <input
-              type="number"
-              name="metrics.lagging.lostTimeInjuryCount"
-              value={formData.metrics.lagging.lostTimeInjuryCount}
-              onChange={handleChange}
-              min="0"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Leading Indicators Section */}
-      <div className="pt-6 border-t mt-8">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Leading Indicators</h2>
-        <p className="text-sm text-gray-500 mb-4">Enter preventative safety metrics</p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Training Completed</label>
-            <input
-              type="number"
-              name="metrics.leading.trainingCompleted"
-              value={formData.metrics.leading.trainingCompleted}
-              onChange={handleChange}
-              min="0"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Inspections Completed</label>
-            <input
-              type="number"
-              name="metrics.leading.inspectionsCompleted"
-              value={formData.metrics.leading.inspectionsCompleted}
-              onChange={handleChange}
-              min="0"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            />
-          </div>
-        </div>
-        
-        <h3 className="font-semibold text-gray-700 mb-2">Key Performance Indicators</h3>
-        <div className="space-y-4">
-          {formData.metrics.leading.kpis.map((kpi) => (
-            <div key={kpi.id} className="flex items-center">
-              <div className="w-1/2">
-                <label className="block text-sm font-medium text-gray-700">{kpi.name}</label>
-                <div className="text-xs text-gray-500">Target: {kpi.target}{kpi.unit}</div>
-              </div>
-              <div className="w-1/2">
-                <input
-                  type="number"
-                  name={`kpi_${kpi.id}`}
-                  value={kpi.actual}
-                  onChange={handleChange}
-                  min="0"
-                  max={kpi.unit === '%' ? 100 : undefined}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-
-      {/* Summary Metrics Section */}
-      <div className="pt-6 border-t mt-8">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Summary Metrics</h2>
-       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Training Compliance (%)</label>
+          <label className="block text-sm font-medium text-gray-700">Training Completed</label>
           <input
             type="number"
-            name="metrics.trainingCompliance"
-            value={formData.metrics.trainingCompliance}
+            name="metrics.leading.trainingCompleted"
+            value={formData.metrics.leading.trainingCompleted}
             onChange={handleChange}
             min="0"
-            max="100"
-            step="0.1"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">Risk Score (1-10)</label>
+          <label className="block text-sm font-medium text-gray-700">Inspections Completed</label>
           <input
             type="number"
-            name="metrics.riskScore"
-            value={formData.metrics.riskScore}
+            name="metrics.leading.inspectionsCompleted"
+            value={formData.metrics.leading.inspectionsCompleted}
             onChange={handleChange}
             min="0"
-            max="10"
-            step="0.1"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
           />
         </div>
       </div>
 
-      {/* Form Data Preview */}
-      {/* Form Data Preview Section */}
-      <div className="pt-6 border-t mt-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">Form Data Preview</h2>
-          <button
-            type="button"
-            className="text-sm text-blue-600 hover:text-blue-800"
-            onClick={() => {
-              console.log('KPI data in form:', formData.metrics?.leading?.kpis || 'Not found');
-              console.log('Complete form data:', formData);
-            }}
-          >
-            Log Data
-          </button>
-        </div>
-        <div className="bg-gray-100 p-4 rounded-md">
-          <h3 className="text-sm font-medium mb-2">KPIs to be submitted:</h3>
-          {Array.isArray(formData.metrics?.leading?.kpis) && formData.metrics.leading.kpis.length > 0 ? (
-            <ul className="text-xs space-y-1">
-              {formData.metrics.leading.kpis.map((kpi, index) => (
-                <li key={index}>
-                  {kpi.name}: {kpi.actual} {kpi.unit} (Target: {kpi.target} {kpi.unit})
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-red-500">No KPIs found in form data structure</p>
-          )}
-        </div>
-      </div>
-
-      {/* Submit buttons */}
-      <div className="pt-6 border-t mt-8 flex justify-end space-x-3">
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-            isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
-          }`}
-        >
-          {isSubmitting ? 'Submitting...' : 'Submit Report'}
-        </button>
-      </div>
-
-      {submitError && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 mt-4">
-          <div className="flex">
-            <div className="ml-3">
-              <p className="text-sm text-red-700">{submitError}</p>
+      <h3 className="font-semibold text-gray-700 mt-6 mb-2">Key Performance Indicators</h3>
+      <div className="space-y-4">
+        {formData.metrics.leading.kpis.map((kpi) => (
+          <div key={kpi.id} className="flex items-center">
+            <div className="w-1/2">
+              <label className="block text-sm font-medium text-gray-700">{kpi.name}</label>
+              <div className="text-xs text-gray-500">Target: {kpi.target}{kpi.unit}</div>
+            </div>
+            <div className="w-1/2">
+              <input
+                type="number"
+                name={`kpi_${kpi.id}`}
+                value={kpi.actual}
+                onChange={handleChange}
+                min="0"
+                max={kpi.unit === '%' ? 100 : undefined}
+                className="block w-full rounded-md border-gray-300 shadow-sm p-2"
+              />
             </div>
           </div>
-        </div>
-      )}
-    </form>
-  );
-}
+        ))}
+      </div>
+    </div>
 
+    {/* Summary Metrics */}
+    <div className="pt-6 border-t mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Training Compliance (%)</label>
+        <input
+          type="number"
+          name="metrics.trainingCompliance"
+          value={formData.metrics.trainingCompliance}
+          onChange={handleChange}
+          min="0"
+          max="100"
+          step="0.1"
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Risk Score (1-10)</label>
+        <input
+          type="number"
+          name="metrics.riskScore"
+          value={formData.metrics.riskScore}
+          onChange={handleChange}
+          min="0"
+          max="10"
+          step="0.1"
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+        />
+      </div>
+    </div>
+
+    {/* Submit */}
+    <div className="pt-6 border-t mt-8 flex justify-end gap-4">
+      <button
+        type="button"
+        onClick={() => navigate('/')}
+        className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 border"
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className={`px-4 py-2 rounded-md text-white bg-blue-600 hover:bg-blue-700 ${
+          isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+        }`}
+      >
+        {isSubmitting ? 'Submitting...' : 'Submit Report'}
+      </button>
+    </div>
+
+    {submitError && (
+      <div className="mt-4 p-4 border-l-4 border-red-500 bg-red-50 text-sm text-red-700">
+        {submitError}
+      </div>
+    )}
+  </form>
+);
