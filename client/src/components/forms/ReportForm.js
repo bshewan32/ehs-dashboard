@@ -9,13 +9,18 @@ export default function ReportForm() {
     companyName: '',
     reportPeriod: '',
     reportType: 'Monthly',
-    totalIncidents: 0,
-    totalNearMisses: 0,
+    // Lagging indicators
+    incidentCount: 0,
+    nearMissCount: 0,
     firstAidCount: 0,
     medicalTreatmentCount: 0,
+    lostTimeInjuryCount: 0,
+    // Leading indicators
+    trainingCompleted: 0,
+    inspectionsCompleted: 0,
     trainingCompliance: 0,
     riskScore: 0,
-    // Added KPI data fields
+    // KPIs
     nearMissRate: 0,
     criticalRiskVerification: 0,
     electricalSafetyCompliance: 0
@@ -23,9 +28,13 @@ export default function ReportForm() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    const numericFields = ['totalIncidents', 'totalNearMisses', 'firstAidCount', 
-                         'medicalTreatmentCount', 'trainingCompliance', 'riskScore',
-                         'nearMissRate', 'criticalRiskVerification', 'electricalSafetyCompliance'];
+    const numericFields = [
+      'incidentCount', 'nearMissCount', 'firstAidCount', 
+      'medicalTreatmentCount', 'lostTimeInjuryCount',
+      'trainingCompleted', 'inspectionsCompleted', 
+      'trainingCompliance', 'riskScore',
+      'nearMissRate', 'criticalRiskVerification', 'electricalSafetyCompliance'
+    ];
     
     // Convert numeric fields to numbers
     const processedValue = numericFields.includes(name) 
@@ -38,22 +47,24 @@ export default function ReportForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Create proper data structure with KPIs included
+    // IMPORTANT: Create a structure that exactly matches the MongoDB model
     const payload = {
       companyName: formData.companyName,
       reportPeriod: formData.reportPeriod,
       reportType: formData.reportType,
       metrics: {
-        totalIncidents: parseInt(formData.totalIncidents),
-        totalNearMisses: parseInt(formData.totalNearMisses),
-        firstAidCount: parseInt(formData.firstAidCount),
-        medicalTreatmentCount: parseInt(formData.medicalTreatmentCount),
-        trainingCompliance: parseFloat(formData.trainingCompliance),
-        riskScore: parseFloat(formData.riskScore),
-        
-        // Add leading indicators with KPIs
+        // Nested structure matching backend model
+        lagging: {
+          incidentCount: parseInt(formData.incidentCount),
+          nearMissCount: parseInt(formData.nearMissCount),
+          firstAidCount: parseInt(formData.firstAidCount),
+          medicalTreatmentCount: parseInt(formData.medicalTreatmentCount),
+          lostTimeInjuryCount: parseInt(formData.lostTimeInjuryCount)
+        },
         leading: {
-          trainingCompleted: parseFloat(formData.trainingCompliance),
+          trainingCompleted: parseFloat(formData.trainingCompleted),
+          inspectionsCompleted: parseInt(formData.inspectionsCompleted),
+          // KPIs array exactly as expected by the model
           kpis: [
             { 
               id: 'nearMissRate',
@@ -78,16 +89,13 @@ export default function ReportForm() {
             }
           ]
         },
-        
-        // Add lagging indicators
-        lagging: {
-          incidentCount: parseInt(formData.totalIncidents),
-          nearMissCount: parseInt(formData.totalNearMisses),
-          firstAidCount: parseInt(formData.firstAidCount),
-          medicalTreatmentCount: parseInt(formData.medicalTreatmentCount)
-        }
+        // These are at the top level of metrics in your model
+        trainingCompliance: parseFloat(formData.trainingCompliance),
+        riskScore: parseFloat(formData.riskScore)
       }
     };
+
+    console.log('Submitting report with payload:', JSON.stringify(payload, null, 2));
 
     try {
       const res = await submitReport(payload);
@@ -127,26 +135,40 @@ export default function ReportForm() {
             required
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Report Type</label>
+          <select
+            name="reportType"
+            value={formData.reportType}
+            onChange={handleChange}
+            className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+            required
+          >
+            <option value="Monthly">Monthly</option>
+            <option value="Quarterly">Quarterly</option>
+            <option value="Annual">Annual</option>
+          </select>
+        </div>
       </div>
       
       <h3 className="text-lg font-semibold mt-6 border-b pb-2">Lagging Indicators</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Total Incidents</label>
+          <label className="block text-sm font-medium text-gray-700">Incidents</label>
           <input
             type="number"
-            name="totalIncidents"
-            value={formData.totalIncidents}
+            name="incidentCount"
+            value={formData.incidentCount}
             onChange={handleChange}
             className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">Total Near Misses</label>
+          <label className="block text-sm font-medium text-gray-700">Near Misses</label>
           <input
             type="number"
-            name="totalNearMisses"
-            value={formData.totalNearMisses}
+            name="nearMissCount"
+            value={formData.nearMissCount}
             onChange={handleChange}
             className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
           />
@@ -171,10 +193,41 @@ export default function ReportForm() {
             className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Lost Time Injuries</label>
+          <input
+            type="number"
+            name="lostTimeInjuryCount"
+            value={formData.lostTimeInjuryCount}
+            onChange={handleChange}
+            className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+          />
+        </div>
       </div>
       
       <h3 className="text-lg font-semibold mt-6 border-b pb-2">Leading Indicators</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Training Completed</label>
+          <input
+            type="number"
+            name="trainingCompleted"
+            value={formData.trainingCompleted}
+            onChange={handleChange}
+            step="0.1"
+            className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Inspections Completed</label>
+          <input
+            type="number"
+            name="inspectionsCompleted"
+            value={formData.inspectionsCompleted}
+            onChange={handleChange}
+            className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+          />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">Training Compliance (%)</label>
           <input
