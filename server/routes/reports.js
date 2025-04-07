@@ -2,7 +2,6 @@
 const express = require('express');
 const router = express.Router();
 const Report = require('../models/Report');
-const auth = require('../middleware/auth');
 
 /**
  * @route   GET /api/reports
@@ -19,7 +18,45 @@ router.get('/', async (req, res) => {
   }
 });
 
-// server/routes/reports.js - Just the metrics summary endpoint
+/**
+ * @route   POST /api/reports
+ * @desc    Create a new report
+ * @access  Private (if using auth middleware)
+ */
+router.post('/', async (req, res) => {
+  try {
+    // Log the incoming request body for debugging
+    console.log('Received report submission:', JSON.stringify(req.body, null, 2));
+    
+    // Create a new report from the request body
+    const newReport = new Report(req.body);
+    
+    // Save the report to the database
+    const savedReport = await newReport.save();
+    
+    // Log the saved report
+    console.log('Successfully saved report:', savedReport._id);
+    
+    // Return success response
+    res.status(201).json({ 
+      message: 'Report created successfully', 
+      reportId: savedReport._id 
+    });
+  } catch (err) {
+    console.error('Error creating report:', err);
+    
+    // Check for validation errors
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: 'Validation error', 
+        errors: Object.values(err.errors).map(e => e.message) 
+      });
+    }
+    
+    // Return general server error
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 /**
  * @route   GET /api/reports/metrics/summary
@@ -103,4 +140,3 @@ router.get('/:id', async (req, res) => {
 });
 
 module.exports = router;
-
