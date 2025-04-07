@@ -96,44 +96,90 @@ const AIPanel = ({ metrics, companyName }) => {
   };
 
   return (
-    <div className="p-4 bg-white rounded shadow border-l-4 border-blue-500">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xl font-semibold">
-          AI Safety Recommendations
-          {companyName && <span className="text-blue-600 ml-2">({companyName})</span>}
-        </h2>
-        {loading ? (
-          <span className="text-sm text-gray-500 animate-pulse">Generating insights...</span>
-        ) : error ? (
-          <span className="text-sm text-orange-500">{error}</span>
-        ) : (
-          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">AI-powered</span>
-        )}
+    <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      {/* Header section */}
+      <div className="px-6 py-4 bg-gradient-to-r from-indigo-700 to-purple-500 text-white">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-semibold flex items-center">
+              <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+              </svg>
+              AI Safety Insights
+              {companyName && <span className="ml-2 text-purple-100">({companyName})</span>}
+            </h2>
+            <p className="text-sm text-purple-100">Intelligent safety recommendations</p>
+          </div>
+          
+          {loading ? (
+            <div className="text-sm bg-purple-800 px-3 py-1 rounded-full animate-pulse flex items-center">
+              <div className="w-2 h-2 bg-purple-100 rounded-full mr-2"></div>
+              Processing
+            </div>
+          ) : error ? (
+            <div className="text-sm bg-orange-600 px-3 py-1 rounded-full flex items-center">
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Fallback
+            </div>
+          ) : (
+            <div className="text-sm bg-green-600 px-3 py-1 rounded-full flex items-center">
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+              AI-powered
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Loading state */}
       {loading ? (
-        <div className="flex justify-center items-center h-32">
-          <div className="animate-pulse flex flex-col items-center">
-            <div className="h-2 bg-gray-200 rounded-full w-32 mb-4"></div>
-            <div className="h-2 bg-gray-200 rounded-full w-full mb-2.5"></div>
-            <div className="h-2 bg-gray-200 rounded-full w-full mb-2.5"></div>
-            <div className="h-2 bg-gray-200 rounded-full w-3/4"></div>
+        <div className="p-6">
+          <div className="flex justify-center items-center h-40">
+            <div className="animate-pulse flex flex-col items-center">
+              <div className="w-10 h-10 rounded-full bg-indigo-200 mb-3"></div>
+              <div className="h-3 bg-gray-200 rounded w-32 mb-6"></div>
+              <div className="h-2 bg-gray-200 rounded w-full mb-2.5"></div>
+              <div className="h-2 bg-gray-200 rounded w-full mb-2.5"></div>
+              <div className="h-2 bg-gray-200 rounded w-3/4"></div>
+            </div>
           </div>
         </div>
       ) : (
-        <ul className="space-y-3">
-          {recommendations.map((rec, index) => (
-            <li key={index} className="text-gray-700 leading-relaxed border-b pb-3 last:border-b-0">
-              {rec}
-            </li>
-          ))}
-        </ul>
+        <div className="p-6">
+          {/* Recommendations list */}
+          <ul className="space-y-4">
+            {recommendations.map((rec, index) => (
+              <li key={index} className="bg-gray-50 p-4 rounded-lg border-l-4 border-indigo-500 hover:shadow-md transition-shadow duration-200">
+                <div className="flex">
+                  <span className="flex-shrink-0 bg-indigo-100 text-indigo-800 font-bold rounded-full w-6 h-6 flex items-center justify-center mr-3">
+                    {index + 1}
+                  </span>
+                  <p className="text-gray-700 leading-relaxed">{rec}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+          
+          {/* Footer */}
+          <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs text-gray-500">
+            <div className="flex items-center">
+              <svg className="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Last updated: {new Date().toLocaleString()}
+            </div>
+            <div className="flex items-center">
+              <svg className="w-4 h-4 mr-1 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13.5 2c-5.629 0-10.212 4.436-10.475 10h-3.025l4.537 5.917 4.463-5.917h-2.975c.26-3.902 3.508-7 7.475-7 4.136 0 7.5 3.364 7.5 7.5s-3.364 7.5-7.5 7.5c-2.381 0-4.502-1.119-5.876-2.854l-1.847 2.449c1.919 2.088 4.664 3.405 7.723 3.405 5.798 0 10.5-4.702 10.5-10.5s-4.702-10.5-10.5-10.5z"/>
+              </svg>
+              <span>Powered by OpenAI</span>
+            </div>
+          </div>
+        </div>
       )}
-      
-      <div className="mt-4 text-xs text-gray-500 flex justify-between items-center">
-        <span>Updated {new Date().toLocaleString()}</span>
-        <span>Powered by OpenAI</span>
-      </div>
     </div>
   );
 };
