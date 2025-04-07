@@ -1,98 +1,113 @@
-// client/src/pages/Dashboard.js
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
-import { fetchReports, fetchMetricsSummary } from '../components/services/api';
+
+const api_url = process.env.REACT_APP_API_URL;
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
-  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const loadDashboardData = async () => {
-      setLoading(true);
+    async function fetchMetrics() {
       try {
-        // Fetch all reports first for the full dataset
-        const reportsData = await fetchReports();
-        console.log('Dashboard - Fetched reports:', reportsData);
-        setReports(reportsData);
+        setLoading(true);
+        // Try to fetch from summary endpoint
+        const response = await fetch(`${api_url}/api/reports/metrics/summary`);
         
-        // Also fetch the metrics summary
-        const metricsData = await fetchMetricsSummary();
-        console.log('Dashboard - Fetched metrics summary:', metricsData);
-        
-        // IMPORTANT FIX: Ensure metrics has proper structure with KPI data
-        // If metricsData is missing the leading structure but reports have it,
-        // copy the KPIs from the most recent report
-        if (reportsData && reportsData.length > 0) {
-          const mostRecent = reportsData[reportsData.length - 1];
-          
-          // Check if we need to fix the metrics structure
-          if (mostRecent?.metrics?.leading?.kpis && 
-              Array.isArray(mostRecent.metrics.leading.kpis) && 
-              (!metricsData.leading || !metricsData.leading.kpis)) {
-            
-            console.log('Fixing metrics structure by adding KPIs from most recent report');
-            
-            // Create proper structure if needed
-            if (!metricsData.leading) {
-              metricsData.leading = { 
-                trainingCompleted: mostRecent.metrics.leading.trainingCompleted || 0,
-                inspectionsCompleted: mostRecent.metrics.leading.inspectionsCompleted || 0,
-                kpis: []
-              };
-            }
-            
-            // Copy KPIs to metrics object
-            metricsData.leading.kpis = mostRecent.metrics.leading.kpis;
-            console.log('Updated metrics with KPIs:', metricsData);
-          }
+        // Check if response is valid
+        if (!response.ok) {
+          throw new Error(`API error with status ${response.status}`);
         }
         
-        setMetrics(metricsData);
-        setError(null);
-      } catch (err) {
-        console.error('Error loading dashboard data:', err);
-        setError('Failed to load dashboard data. Please try again later.');
-      } finally {
+        const data = await response.json();
+        console.log('Fetched metrics:', data);
+        
+        // Ensure KPIs are defined with fallbacks
+        if (!data.leading) {
+          data.leading = {};
+        }
+        
+        if (!data.leading.kpis || !Array.isArray(data.leading.kpis) || data.leading.kpis.length === 0) {
+          data.leading.kpis = [
+            { 
+              id: 'nearMissRate',
+              name: 'Near Miss Reporting Rate',
+              actual: 0,
+              target: 100,
+              unit: '%' 
+            },
+            { 
+              id: 'criticalRiskVerification',
+              name: 'Critical Risk Control Verification',
+              actual: 0,
+              target: 95,
+              unit: '%' 
+            },
+            { 
+              id: 'electricalSafetyCompliance',
+              name: 'Electrical Safety Compliance',
+              actual: 0,
+              target: 100,
+              unit: '%' 
+            },
+          ];
+        }
+        
+        setMetrics(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching metrics:', error);
+        setError(error.message);
+        
+        // Create a fallback metrics object with default values
+        const fallbackMetrics = {
+          lagging: {
+            incidentCount: 0,
+            nearMissCount: 0,
+            firstAidCount: 0,
+            medicalTreatmentCount: 0
+          },
+          leading: {
+            trainingCompleted: 0,
+            inspectionsCompleted: 0,
+            kpis: [
+              { 
+                id: 'nearMissRate',
+                name: 'Near Miss Reporting Rate',
+                actual: 0,
+                target: 100,
+                unit: '%' 
+              },
+              { 
+                id: 'criticalRiskVerification',
+                name: 'Critical Risk Control Verification',
+                actual: 0,
+                target: 95,
+                unit: '%' 
+              },
+              { 
+                id: 'electricalSafetyCompliance',
+                name: 'Electrical Safety Compliance',
+                actual: 0,
+                target: 100,
+                unit: '%' 
+              },
+            ]
+          }
+        };
+        
+        setMetrics(fallbackMetrics);
         setLoading(false);
       }
-    };
-
-    loadDashboardData();
-  }, []);
-  
-  // Function to verify that we have KPI data
-  const verifyKpiData = () => {
-    let kpiFound = false;
-    let kpiSource = null;
-    
-    // Check metrics object first
-    if (metrics && metrics.leading && Array.isArray(metrics.leading.kpis) && metrics.leading.kpis.length > 0) {
-      kpiFound = true;
-      kpiSource = 'metrics.leading.kpis';
-      console.log('Dashboard - KPIs found in metrics:', metrics.leading.kpis);
-    } 
-    // Then check reports
-    else if (reports && reports.length > 0) {
-      const mostRecent = reports[reports.length - 1];
-      if (mostRecent && mostRecent.metrics && mostRecent.metrics.leading && 
-          Array.isArray(mostRecent.metrics.leading.kpis) && mostRecent.metrics.leading.kpis.length > 0) {
-        kpiFound = true;
-        kpiSource = 'reports[latest].metrics.leading.kpis';
-        console.log('Dashboard - KPIs found in most recent report:', mostRecent.metrics.leading.kpis);
-      }
     }
-    
-    return { kpiFound, kpiSource };
-  };
 
-  const { kpiFound, kpiSource } = verifyKpiData();
+    fetchMetrics();
+  }, []);
 
   return (
     <div className="space-y-6 p-6">
@@ -106,71 +121,23 @@ export default function Dashboard() {
       </div>
 
       {loading ? (
-        <div className="text-center p-8">
-          <div className="animate-pulse flex space-x-4 justify-center">
-            <div className="rounded-full bg-slate-200 h-10 w-10"></div>
-            <div className="flex-1 space-y-6 py-1 max-w-md">
-              <div className="h-2 bg-slate-200 rounded"></div>
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="h-2 bg-slate-200 rounded col-span-2"></div>
-                  <div className="h-2 bg-slate-200 rounded col-span-1"></div>
-                </div>
-                <div className="h-2 bg-slate-200 rounded"></div>
-              </div>
-            </div>
-          </div>
-          <p className="mt-4 text-gray-500">Loading metrics...</p>
+        <div className="text-center p-10 text-gray-500">
+          <div className="text-xl">Loading dashboard data...</div>
         </div>
       ) : error ? (
-        <div className="p-6 bg-red-50 border border-red-200 rounded text-red-600">
-          <h2 className="text-xl font-bold mb-2">Error</h2>
-          <p>{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Retry
-          </button>
+        <div className="bg-red-50 border border-red-300 text-red-700 p-4 rounded shadow mb-4">
+          <div className="font-bold">Error loading dashboard data</div>
+          <div>{error}</div>
+          <div className="mt-2">Using fallback data for display purposes.</div>
         </div>
-      ) : (
-        <>
-          {/* Pass both metrics and reports to child components */}
-          <MetricsOverview metrics={metrics} reports={reports} />
-          <KPIOverview metrics={metrics} reports={reports} />
-          <TrendCharts reports={reports} />
-          <AIPanel metrics={metrics} reports={reports} />
-          
-          {/* Debug information */}
-          <div className="p-4 bg-white rounded shadow border-l-4 border-yellow-400">
-            <h2 className="text-lg font-medium mb-2">Debug Information</h2>
-            <div className="text-sm text-gray-600">
-              <div><strong>Reports loaded:</strong> {reports.length}</div>
-              <div><strong>Metrics loaded:</strong> {metrics ? 'Yes' : 'No'}</div>
-              <div><strong>KPI data found:</strong> {kpiFound ? '✅ Yes' : '❌ No'}</div>
-              {kpiSource && <div><strong>KPI source:</strong> {kpiSource}</div>}
-              
-              <div className="mt-3">
-                <strong>Data verification:</strong>
-                <ul className="list-disc list-inside mt-1 ml-2">
-                  <li className={metrics ? 'text-green-600' : 'text-red-600'}>
-                    Metrics object: {metrics ? 'Present' : 'Missing'}
-                  </li>
-                  <li className={metrics?.leading ? 'text-green-600' : 'text-red-600'}>
-                    Leading metrics: {metrics?.leading ? 'Present' : 'Missing'}
-                  </li>
-                  <li className={Array.isArray(metrics?.leading?.kpis) ? 'text-green-600' : 'text-red-600'}>
-                    KPIs array: {Array.isArray(metrics?.leading?.kpis) ? 'Present' : 'Missing'}
-                  </li>
-                  <li className={metrics?.leading?.kpis?.length > 0 ? 'text-green-600' : 'text-red-600'}>
-                    KPIs data: {metrics?.leading?.kpis?.length > 0 ? 'Present' : 'Empty or missing'}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      ) : null}
+
+      <div className="space-y-6">
+        <MetricsOverview metrics={metrics} />
+        <KPIOverview metrics={metrics} />
+        <TrendCharts />
+        <AIPanel metrics={metrics} />
+      </div>
     </div>
   );
 }
