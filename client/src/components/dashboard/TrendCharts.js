@@ -7,30 +7,67 @@ const TrendCharts = ({ reports: propReports }) => {
   const [incidentData, setIncidentData] = useState([]);
   const [kpiData, setKpiData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [debug, setDebug] = useState({
+    dataSource: null,
+    reportCount: 0,
+    hasKpiData: false
+  });
 
   useEffect(() => {
     const loadTrendData = async () => {
       try {
         // Use prop reports if available, otherwise fetch reports
-        const reports = propReports && propReports.length > 0 
-          ? propReports 
-          : await fetchReports();
+        let reports;
+        let dataSource;
         
-        console.log('Reports for trend charts:', reports);
+        if (propReports && propReports.length > 0) {
+          reports = propReports;
+          dataSource = "props";
+          console.log("TrendCharts - Using reports from props:", reports.length);
+        } else {
+          reports = await fetchReports();
+          dataSource = "fetch";
+          console.log("TrendCharts - Fetched reports directly:", reports.length);
+        }
         
         if (!reports || reports.length === 0) {
+          console.log("TrendCharts - No reports available");
           setLoading(false);
           return;
         }
 
-        // Format incident data
-        const trendData = reports.map((report) => ({
-          name: report.reportPeriod,
-          incidents: report.metrics?.lagging?.incidentCount || 
-                    report.metrics?.totalIncidents || 0,
-          nearMisses: report.metrics?.lagging?.nearMissCount || 
-                      report.metrics?.totalNearMisses || 0,
-        }));
+        // Debug log all reports to check structure
+        reports.forEach((report, index) => {
+          console.log(`Report ${index} (${report.reportPeriod}):`, {
+            incidentCount: report.metrics?.lagging?.incidentCount,
+            nearMissCount: report.metrics?.lagging?.nearMissCount,
+            totalIncidents: report.metrics?.totalIncidents,
+            totalNearMisses: report.metrics?.totalNearMisses,
+            kpis: report.metrics?.leading?.kpis
+          });
+        });
+
+        // Format incident data, checking various possible locations
+        const trendData = reports.map((report) => {
+          // Check both new structure and legacy structure
+          const incidentCount = report.metrics?.lagging?.incidentCount ?? 
+                               report.metrics?.totalIncidents ?? 0;
+                               
+          const nearMissCount = report.metrics?.lagging?.nearMissCount ?? 
+                               report.metrics?.totalNearMisses ?? 0;
+                               
+          console.log(`TrendCharts - ${report.reportPeriod} data:`, { 
+            incidentCount, 
+            nearMissCount 
+          });
+          
+          return {
+            name: report.reportPeriod,
+            incidents: incidentCount,
+            nearMisses: nearMissCount,
+          };
+        });
+        
         setIncidentData(trendData);
 
         // Process KPI data from reports
@@ -38,11 +75,8 @@ const TrendCharts = ({ reports: propReports }) => {
           // Initialize result object with name
           const result = { name: report.reportPeriod };
           
-          // Check if kpis array exists
+          // Get KPIs from the structured location
           const kpis = report.metrics?.leading?.kpis || [];
-          
-          // Log found KPIs for debugging
-          console.log(`KPIs for ${report.reportPeriod}:`, kpis);
           
           // Map each KPI to the result object
           kpis.forEach(kpi => {
@@ -54,8 +88,22 @@ const TrendCharts = ({ reports: propReports }) => {
           return result;
         });
         
-        console.log('Processed KPI data:', kpiTrend);
+        // Check if we actually have KPI data
+        const hasKpiData = kpiTrend.some(item => 
+          item.nearMissRate !== undefined || 
+          item.criticalRiskVerification !== undefined || 
+          item.electricalSafetyCompliance !== undefined
+        );
+        
+        console.log("TrendCharts - KPI trend data:", kpiTrend);
+        console.log("TrendCharts - Has KPI data:", hasKpiData);
+        
         setKpiData(kpiTrend);
+        setDebug({
+          dataSource,
+          reportCount: reports.length,
+          hasKpiData
+        });
       } catch (err) {
         console.error('Error loading trend data:', err);
       } finally {
@@ -88,17 +136,16 @@ const TrendCharts = ({ reports: propReports }) => {
     );
   }
 
-  // Check if we have any KPI data to display
-  const hasKpiData = kpiData.some(item => 
-    item.nearMissRate !== undefined || 
-    item.criticalRiskVerification !== undefined || 
-    item.electricalSafetyCompliance !== undefined
-  );
-
   return (
     <div className="space-y-8">
       <div className="p-4 bg-white rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">Incident & Near Miss Trends</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Incident & Near Miss Trends</h2>
+          <div className="text-xs text-gray-500">
+            Data source: {debug.dataSource} | Reports: {debug.reportCount}
+          </div>
+        </div>
+        
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={incidentData}>
             <CartesianGrid stroke="#ccc" />
@@ -112,9 +159,18 @@ const TrendCharts = ({ reports: propReports }) => {
         </ResponsiveContainer>
       </div>
 
-      {hasKpiData && (
+      {debug.hasKpiData && (
         <div className="p-4 bg-white rounded shadow">
-          <h2 className="text-xl font-semibold mb-4">KPI Trends</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">KPI Trends</h2>
+            <button
+              onClick={() => console.log("KPI trend data:", kpiData)}
+              className="text-xs text-blue-500 hover:text-blue-700"
+            >
+              Log KPI Data
+            </button>
+          </div>
+          
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={kpiData}>
               <CartesianGrid stroke="#ccc" />
@@ -147,6 +203,18 @@ const TrendCharts = ({ reports: propReports }) => {
           </ResponsiveContainer>
         </div>
       )}
+      
+      {/* Debug info */}
+      <div className="p-3 bg-white rounded shadow border-l-4 border-blue-400">
+        <div className="text-sm font-medium text-gray-700 mb-1">TrendCharts Debug Info:</div>
+        <div className="text-xs text-gray-600 space-y-1">
+          <div>Data source: {debug.dataSource}</div>
+          <div>Reports processed: {debug.reportCount}</div>
+          <div>Has KPI trend data: {debug.hasKpiData ? 'Yes' : 'No'}</div>
+          <div>Incident data points: {incidentData.length}</div>
+          <div>Incident data first item: {incidentData.length > 0 ? JSON.stringify(incidentData[0]) : 'None'}</div>
+        </div>
+      </div>
     </div>
   );
 };
