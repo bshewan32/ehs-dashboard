@@ -423,6 +423,7 @@ const handleSubmit = async (e) => {
       </div>
 
       {/* Form Data Preview */}
+      {/* Form Data Preview Section */}
       <div className="pt-6 border-t mt-8">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-800">Form Data Preview</h2>
@@ -430,7 +431,6 @@ const handleSubmit = async (e) => {
             type="button"
             className="text-sm text-blue-600 hover:text-blue-800"
             onClick={() => {
-              // Log KPI data specifically
               console.log('KPI data in form:', formData.metrics?.leading?.kpis || 'Not found');
               console.log('Complete form data:', formData);
             }}
@@ -453,7 +453,6 @@ const handleSubmit = async (e) => {
           )}
         </div>
       </div>
-      
 
       {/* Submit buttons */}
       <div className="pt-6 border-t mt-8 flex justify-end space-x-3">
