@@ -8,6 +8,12 @@ const TrendCharts = () => {
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Helper function to ensure valid period names
+  const formatPeriod = (period) => {
+    if (!period || period === '123') return 'Missing';
+    return period;
+  };
+
   useEffect(() => {
     const loadTrendData = async () => {
       try {
@@ -69,7 +75,7 @@ const TrendCharts = () => {
           nearMisses = nearMisses ?? 0;
 
           return {
-            name: report.reportPeriod || 'Unknown',
+            name: formatPeriod(report.reportPeriod),
             incidents: incidents,
             nearMisses: nearMisses,
           };
@@ -80,7 +86,17 @@ const TrendCharts = () => {
           console.log('First data point:', JSON.stringify(trendData[0]));
         }
 
-        setIncidentData(trendData);
+        // Sort data chronologically if possible
+        const sortedData = [...trendData].sort((a, b) => {
+          // Simple quarter comparison (Q1, Q2, etc)
+          if (a.name.startsWith('Q') && b.name.startsWith('Q')) {
+            return a.name.localeCompare(b.name);
+          }
+          // Default to original order
+          return 0;
+        });
+
+        setIncidentData(sortedData);
 
         // Process KPI data with proper fallbacks
         const kpiTrend = reports.map((report) => {
@@ -94,24 +110,61 @@ const TrendCharts = () => {
           };
 
           return {
-            name: report.reportPeriod || 'Unknown',
+            name: formatPeriod(report.reportPeriod),
             nearMissRate: findMetric('nearMissRate'),
             criticalRiskVerification: findMetric('criticalRiskVerification'),
             electricalCompliance: findMetric('electricalSafetyCompliance'),
           };
         });
 
+        // Sort KPI data the same way
+        const sortedKpiData = [...kpiTrend].sort((a, b) => {
+          if (a.name.startsWith('Q') && b.name.startsWith('Q')) {
+            return a.name.localeCompare(b.name);
+          }
+          return 0;
+        });
+
         console.log('Processed KPI data points:', kpiTrend.length);
-        setKpiData(kpiTrend);
+        setKpiData(sortedKpiData);
         setDataLoading(false);
       } catch (err) {
         console.error('Error loading trend data:', err);
         setError(err.message);
         setDataLoading(false);
+        
+        // Set fallback data on error
+        const fallbackData = [
+          { name: 'Q1', incidents: 0, nearMisses: 0 },
+          { name: 'Q2', incidents: 0, nearMisses: 0 },
+        ];
+        setIncidentData(fallbackData);
+        
+        const fallbackKpiData = [
+          { 
+            name: 'Q1', 
+            nearMissRate: 0, 
+            criticalRiskVerification: 0, 
+            electricalCompliance: 0 
+          },
+          { 
+            name: 'Q2', 
+            nearMissRate: 0, 
+            criticalRiskVerification: 0, 
+            electricalCompliance: 0 
+          },
+        ];
+        setKpiData(fallbackKpiData);
       }
     };
 
     loadTrendData();
+    
+    // Refresh trends every minute
+    const intervalId = setInterval(loadTrendData, 60000);
+    
+    // Clean up interval on unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   if (dataLoading) {
@@ -146,12 +199,14 @@ const TrendCharts = () => {
                 stroke="#8884d8" 
                 name="Incidents" 
                 activeDot={{ r: 8 }}
+                isAnimationActive={false} // Disable animation to avoid flicker
               />
               <Line 
                 type="monotone" 
                 dataKey="nearMisses" 
                 stroke="#82ca9d" 
                 name="Near Misses" 
+                isAnimationActive={false} // Disable animation to avoid flicker
               />
             </LineChart>
           </ResponsiveContainer>
@@ -175,18 +230,21 @@ const TrendCharts = () => {
                 dataKey="nearMissRate" 
                 stroke="#8884d8" 
                 name="Near Miss Rate" 
+                isAnimationActive={false} // Disable animation to avoid flicker
               />
               <Line 
                 type="monotone" 
                 dataKey="criticalRiskVerification" 
                 stroke="#82ca9d" 
                 name="Critical Risk Verification" 
+                isAnimationActive={false} // Disable animation to avoid flicker
               />
               <Line 
                 type="monotone" 
                 dataKey="electricalCompliance" 
                 stroke="#ffc658" 
                 name="Electrical Compliance" 
+                isAnimationActive={false} // Disable animation to avoid flicker
               />
             </LineChart>
           </ResponsiveContainer>

@@ -4,6 +4,7 @@ import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
+import { fetchMetricsSummary } from '../services/api';
 
 const api_url = process.env.REACT_APP_API_URL;
 
@@ -12,60 +13,83 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Setup default KPIs to ensure they're always available
+  const defaultKpis = [
+    { 
+      id: 'nearMissRate',
+      name: 'Near Miss Reporting Rate',
+      actual: 0,
+      target: 100,
+      unit: '%' 
+    },
+    { 
+      id: 'criticalRiskVerification',
+      name: 'Critical Risk Control Verification',
+      actual: 0,
+      target: 95,
+      unit: '%' 
+    },
+    { 
+      id: 'electricalSafetyCompliance',
+      name: 'Electrical Safety Compliance',
+      actual: 0,
+      target: 100,
+      unit: '%' 
+    },
+  ];
+
   useEffect(() => {
     async function fetchMetrics() {
       try {
         setLoading(true);
-        // Try to fetch from summary endpoint
-        const response = await fetch(`${api_url}/api/reports/metrics/summary`);
         
-        // Check if response is valid
-        if (!response.ok) {
-          throw new Error(`API error with status ${response.status}`);
-        }
-        
-        const data = await response.json();
+        // Use our API service instead of direct fetch
+        const data = await fetchMetricsSummary();
         console.log('Fetched metrics:', data);
         
-        // Ensure KPIs are defined with fallbacks
-        if (!data.leading) {
-          data.leading = {};
-        }
+        // Create a properly structured metrics object
+        const processedMetrics = {
+          // Ensure these properties exist with fallbacks
+          totalIncidents: data.totalIncidents ?? 0,
+          totalNearMisses: data.totalNearMisses ?? 0,
+          firstAidCount: data.firstAidCount ?? 0,
+          medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
+          trainingCompliance: data.trainingCompliance ?? 0,
+          riskScore: data.riskScore ?? 0,
+          
+          // Ensure the leading object exists
+          leading: {
+            ...data.leading,
+            // Either use existing KPIs or defaults
+            kpis: (data.leading?.kpis && data.leading.kpis.length > 0) 
+              ? data.leading.kpis 
+              : defaultKpis
+          },
+          
+          // Create lagging metrics if they don't exist
+          lagging: data.lagging || {
+            incidentCount: data.totalIncidents ?? 0,
+            nearMissCount: data.totalNearMisses ?? 0,
+            firstAidCount: data.firstAidCount ?? 0,
+            medicalTreatmentCount: data.medicalTreatmentCount ?? 0
+          }
+        };
         
-        if (!data.leading.kpis || !Array.isArray(data.leading.kpis) || data.leading.kpis.length === 0) {
-          data.leading.kpis = [
-            { 
-              id: 'nearMissRate',
-              name: 'Near Miss Reporting Rate',
-              actual: 0,
-              target: 100,
-              unit: '%' 
-            },
-            { 
-              id: 'criticalRiskVerification',
-              name: 'Critical Risk Control Verification',
-              actual: 0,
-              target: 95,
-              unit: '%' 
-            },
-            { 
-              id: 'electricalSafetyCompliance',
-              name: 'Electrical Safety Compliance',
-              actual: 0,
-              target: 100,
-              unit: '%' 
-            },
-          ];
-        }
-        
-        setMetrics(data);
-        setLoading(false);
+        // Store processed metrics
+        setMetrics(processedMetrics);
+        setError(null);
       } catch (error) {
         console.error('Error fetching metrics:', error);
         setError(error.message);
         
-        // Create a fallback metrics object with default values
-        const fallbackMetrics = {
+        // Create fallback metrics 
+        setMetrics({
+          totalIncidents: 0,
+          totalNearMisses: 0,
+          firstAidCount: 0,
+          medicalTreatmentCount: 0,
+          trainingCompliance: 0,
+          riskScore: 0,
           lagging: {
             incidentCount: 0,
             nearMissCount: 0,
@@ -75,38 +99,21 @@ export default function Dashboard() {
           leading: {
             trainingCompleted: 0,
             inspectionsCompleted: 0,
-            kpis: [
-              { 
-                id: 'nearMissRate',
-                name: 'Near Miss Reporting Rate',
-                actual: 0,
-                target: 100,
-                unit: '%' 
-              },
-              { 
-                id: 'criticalRiskVerification',
-                name: 'Critical Risk Control Verification',
-                actual: 0,
-                target: 95,
-                unit: '%' 
-              },
-              { 
-                id: 'electricalSafetyCompliance',
-                name: 'Electrical Safety Compliance',
-                actual: 0,
-                target: 100,
-                unit: '%' 
-              },
-            ]
+            kpis: defaultKpis
           }
-        };
-        
-        setMetrics(fallbackMetrics);
+        });
+      } finally {
         setLoading(false);
       }
     }
 
     fetchMetrics();
+    
+    // Refresh metrics every 30 seconds
+    const intervalId = setInterval(fetchMetrics, 30000);
+    
+    // Clean up interval on unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   return (
@@ -120,7 +127,7 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {loading ? (
+      {loading && !metrics ? (
         <div className="text-center p-10 text-gray-500">
           <div className="text-xl">Loading dashboard data...</div>
         </div>
@@ -133,6 +140,7 @@ export default function Dashboard() {
       ) : null}
 
       <div className="space-y-6">
+        {/* Pass the metrics explicitly to each component */}
         <MetricsOverview metrics={metrics} />
         <KPIOverview metrics={metrics} />
         <TrendCharts />
