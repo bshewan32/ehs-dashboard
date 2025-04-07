@@ -20,6 +20,7 @@ export default function Dashboard() {
   const [aiRefreshTrigger, setAiRefreshTrigger] = useState(new Date()); // Separate refresh trigger for AI
   const [reportCount, setReportCount] = useState(0); // Track report count to detect new reports
   const [previousMetrics, setPreviousMetrics] = useState(null);
+  const lastFetchTimeRef = useRef(null); // Track when we last successfully fetched data
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -177,12 +178,25 @@ export default function Dashboard() {
   }, [reports, defaultKpis, previousMetrics, createDefaultMetrics, normalizeKpiData]);
 
   // Function to fetch data (separate from useEffect for cleaner code)
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force = false) => {
     try {
+      // Throttle API calls - only fetch if it's been at least 2 minutes or forced
+      const now = new Date();
+      if (!force && lastFetchTimeRef.current) {
+        const timeSinceLastFetch = now - lastFetchTimeRef.current;
+        const minimumInterval = 120000; // 2 minutes in milliseconds
+        
+        if (timeSinceLastFetch < minimumInterval) {
+          console.log(`Skipping API call, last fetch was ${Math.round(timeSinceLastFetch/1000)}s ago`);
+          return; // Skip this fetch cycle
+        }
+      }
+      
       setLoading(true);
       
       // Fetch all reports first
       const reportData = await fetchReports();
+      lastFetchTimeRef.current = now; // Update last successful fetch time
       
       // Check if we have new reports - this would trigger an AI refresh
       if (reportData.length !== reportCount) {
@@ -207,16 +221,26 @@ export default function Dashboard() {
 
   // Effect for initial load and regular refresh of metrics
   useEffect(() => {
-    // Fetch data on mount and when refresh timestamp changes
-    fetchData();
+    // Initial load - force fetch regardless of time
+    fetchData(true);
+    
+    // Set up regular refresh - triggered by refreshTimestamp changes
+  }, [fetchData]);
+
+  // Effect to handle refreshTimestamp changes
+  useEffect(() => {
+    // Only respond to refreshTimestamp after initial setup
+    if (refreshTimestamp) {
+      fetchData();
+    }
   }, [fetchData, refreshTimestamp]);
 
   // Set up automatic refresh timer
   useEffect(() => {
-    // Refresh metrics every 30 seconds
+    // Refresh metrics every 5 minutes instead of 30 seconds
     const intervalId = setInterval(() => {
       setRefreshTimestamp(new Date());
-    }, 30000);
+    }, 300000); // 5 minutes in milliseconds
     
     // Clean up interval on unmount
     return () => clearInterval(intervalId);
