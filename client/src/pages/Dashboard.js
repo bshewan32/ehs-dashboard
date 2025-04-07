@@ -4,7 +4,7 @@ import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
-import { fetchMetricsSummary } from '../services/api';
+import { fetchMetricsSummary } from '../components/services/api';
 
 const api_url = process.env.REACT_APP_API_URL;
 
