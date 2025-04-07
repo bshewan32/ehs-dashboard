@@ -1,5 +1,153 @@
 const api_url = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
+export const submitReport = async (reportData) => {
+  try {
+    const token = localStorage.getItem('token');
+    
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+
+export const fetchInspections = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections`, {
+      headers,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch inspections: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching inspections:', error);
+    // Return empty array as fallback
+    return [];
+  }
+};
+
+export const submitInspection = async (inspectionData) => {
+  try {
+    const token = localStorage.getItem('token');
+    
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(inspectionData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to submit inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error submitting inspection:', error);
+    throw error;
+  }
+};
+
+export const fetchMetricsSummary = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${api_url}/api/reports/metrics/summary`, {
+      headers,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch metrics summary: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching metrics summary:', error);
+    // Return default metrics object as fallback
+    return {
+      lagging: {
+        incidentCount: 0,
+        nearMissCount: 0,
+        firstAidCount: 0,
+        medicalTreatmentCount: 0
+      },
+      leading: {
+        trainingCompleted: 0,
+        inspectionsCompleted: 0,
+        kpis: [
+          { 
+            id: 'nearMissRate',
+            name: 'Near Miss Reporting Rate',
+            actual: 0,
+            target: 100,
+            unit: '%' 
+          },
+          { 
+            id: 'criticalRiskVerification',
+            name: 'Critical Risk Control Verification',
+            actual: 0,
+            target: 95,
+            unit: '%' 
+          },
+          { 
+            id: 'electricalSafetyCompliance',
+            name: 'Electrical Safety Compliance',
+            actual: 0,
+            target: 100,
+            unit: '%' 
+          },
+        ]
+      }
+    };
+  }
+};
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${api_url}/api/reports`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(reportData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to submit report: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error submitting report:', error);
+    throw error;
+  }
+};
+
 export const fetchReports = async () => {
   try {
     // Get token if it exists
