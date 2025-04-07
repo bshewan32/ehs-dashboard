@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { fetchReports } from '../services/api';
 
 const KPIOverview = ({ metrics, companyName }) => {
   const [kpis, setKpis] = useState([]);
   const [loading, setLoading] = useState(true);
+  const previousKpisRef = useRef(null);
 
   // Default KPIs to use when none are available
   const defaultKpis = [
@@ -30,41 +31,53 @@ const KPIOverview = ({ metrics, companyName }) => {
     },
   ];
 
+  // Function to check if KPIs have actually changed
+  const haveKpisChanged = (newKpis, oldKpis) => {
+    if (!oldKpis) return true;
+    if (newKpis.length !== oldKpis.length) return true;
+    
+    // Deep compare the KPIs by stringifying them
+    return JSON.stringify(newKpis) !== JSON.stringify(oldKpis);
+  };
+
   useEffect(() => {
     const loadKpis = async () => {
       try {
-        setLoading(true);
-        
         // First check if metrics are passed and have KPIs
         if (metrics && metrics.leading && metrics.leading.kpis && metrics.leading.kpis.length > 0) {
-          console.log('Using KPIs from props:', metrics.leading.kpis);
-          setKpis(metrics.leading.kpis);
+          const newKpis = metrics.leading.kpis;
+          
+          // Only update if KPIs have actually changed
+          if (haveKpisChanged(newKpis, previousKpisRef.current)) {
+            console.log('KPIs changed, updating...');
+            setKpis(newKpis);
+            previousKpisRef.current = newKpis;
+          }
+          
           setLoading(false);
           return;
         }
         
-        // If metrics exist but no KPIs, add default KPIs to metrics
+        // If metrics exist but no KPIs, use defaults
         if (metrics) {
-          console.log('No KPIs in props, using defaults');
-          // Ensure we don't cause side effects on the original metrics object
-          if (!metrics.leading) {
-            metrics.leading = {};
+          // Only update if we haven't set KPIs yet
+          if (!previousKpisRef.current) {
+            console.log('No KPIs in props, using defaults');
+            setKpis(defaultKpis);
+            previousKpisRef.current = defaultKpis;
           }
-          metrics.leading.kpis = defaultKpis;
-          setKpis(defaultKpis);
           setLoading(false);
           return;
         }
 
         // Fall back to API if no props
+        setLoading(true);
         const reports = await fetchReports();
-        console.log('Fetched reports for KPIs:', reports.length);
         
         // Filter by company if specified
         let filteredReports = reports;
         if (companyName) {
           filteredReports = reports.filter(report => report.companyName === companyName);
-          console.log(`Filtered to ${filteredReports.length} reports for company: ${companyName}`);
         }
         
         if (filteredReports && filteredReports.length > 0) {
@@ -76,31 +89,41 @@ const KPIOverview = ({ metrics, companyName }) => {
           const mostRecent = filteredReports[0];
           
           // Try different possible locations of KPI data
+          let newKpis;
           if (mostRecent?.metrics?.leading?.kpis && mostRecent.metrics.leading.kpis.length > 0) {
-            console.log('Using KPIs from API reports - nested path');
-            setKpis(mostRecent.metrics.leading.kpis);
+            newKpis = mostRecent.metrics.leading.kpis;
           } else if (mostRecent?.kpis && mostRecent.kpis.length > 0) {
-            console.log('Using KPIs from API reports - direct path');
-            setKpis(mostRecent.kpis);
+            newKpis = mostRecent.kpis;
           } else {
-            console.log('No KPIs in API data, using defaults');
-            setKpis(defaultKpis);
+            newKpis = defaultKpis;
+          }
+          
+          // Only update if KPIs have actually changed
+          if (haveKpisChanged(newKpis, previousKpisRef.current)) {
+            setKpis(newKpis);
+            previousKpisRef.current = newKpis;
           }
         } else {
-          console.log('No reports found, using default KPIs');
-          setKpis(defaultKpis);
+          // Only set defaults if we don't have KPIs yet
+          if (!previousKpisRef.current) {
+            setKpis(defaultKpis);
+            previousKpisRef.current = defaultKpis;
+          }
         }
       } catch (error) {
         console.error('Error loading KPIs:', error);
-        console.log('Using default KPIs due to error');
-        setKpis(defaultKpis);
+        // Only set defaults if we don't have KPIs yet
+        if (!previousKpisRef.current) {
+          setKpis(defaultKpis);
+          previousKpisRef.current = defaultKpis;
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadKpis();
-  }, [metrics, companyName]); // Add companyName as dependency to reload when it changes
+  }, [metrics, companyName]); // Add companyName as dependency
 
   // Helper function to determine the color based on how close the actual value is to the target
   const getProgressColor = (actual, target) => {
@@ -142,7 +165,7 @@ const KPIOverview = ({ metrics, companyName }) => {
     }
   };
 
-  if (loading) {
+  if (loading && !previousKpisRef.current) {
     return (
       <div className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse">
         <div className="h-10 bg-gray-200 mb-4"></div>
@@ -182,7 +205,7 @@ const KPIOverview = ({ metrics, companyName }) => {
         ) : (
           <div className="space-y-6">
             {kpis.map((kpi, index) => (
-              <div key={index} className="p-4 border rounded-lg hover:shadow-md transition duration-200 ease-in-out">
+              <div key={`${kpi.id}-${index}`} className="p-4 border rounded-lg hover:shadow-md transition duration-200 ease-in-out">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-medium text-gray-800">{kpi.name}</h3>
                   <div className="flex items-center">

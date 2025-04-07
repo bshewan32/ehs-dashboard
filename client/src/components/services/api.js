@@ -292,6 +292,10 @@ export const fetchMetricsSummary = async () => {
 /**
  * Fetch metrics data for a specific company
  */
+/**
+ * Fetch metrics data for a specific company
+ * With improved stability for KPI processing
+ */
 export const fetchCompanyMetrics = async (companyName) => {
   try {
     if (!companyName) {
@@ -329,6 +333,19 @@ export const fetchCompanyMetrics = async (companyName) => {
     const mostRecent = companyReports[0];
     console.log(`Using most recent report from ${mostRecent.reportPeriod} for ${companyName}`);
     
+    // Helper function to normalize KPI data
+    const normalizeKpis = (kpis) => {
+      if (!kpis || !Array.isArray(kpis)) return createDefaultKpis();
+      
+      return kpis.map(kpi => ({
+        id: kpi.id || kpi.name.toLowerCase().replace(/\s+/g, ''),
+        name: kpi.name,
+        actual: kpi.actual || 0,
+        target: kpi.target || 100,
+        unit: kpi.unit || '%'
+      }));
+    };
+    
     // Extract and format metrics from the most recent report
     const metrics = {
       // Combine both the top-level metrics and nested structure
@@ -346,17 +363,13 @@ export const fetchCompanyMetrics = async (companyName) => {
         firstAidCount: mostRecent.metrics?.firstAidCount ?? 0,
         medicalTreatmentCount: mostRecent.metrics?.medicalTreatmentCount ?? 0
       },
-      leading: mostRecent.metrics?.leading ?? {
-        trainingCompleted: 0,
-        inspectionsCompleted: 0,
-        kpis: createDefaultKpis()
+      leading: {
+        trainingCompleted: mostRecent.metrics?.leading?.trainingCompleted ?? 0,
+        inspectionsCompleted: mostRecent.metrics?.leading?.inspectionsCompleted ?? 0,
+        // Normalize KPIs to ensure consistency
+        kpis: normalizeKpis(mostRecent.metrics?.leading?.kpis)
       }
     };
-    
-    // Make sure KPIs exist within the leading object
-    if (!metrics.leading.kpis || metrics.leading.kpis.length === 0) {
-      metrics.leading.kpis = createDefaultKpis();
-    }
     
     return metrics;
   } catch (error) {

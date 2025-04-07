@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
@@ -16,6 +16,10 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [reports, setReports] = useState([]);
+  const [refreshTimestamp, setRefreshTimestamp] = useState(new Date()); // For regular metrics refresh
+  const [aiRefreshTrigger, setAiRefreshTrigger] = useState(new Date()); // Separate refresh trigger for AI
+  const [reportCount, setReportCount] = useState(0); // Track report count to detect new reports
+  const [previousMetrics, setPreviousMetrics] = useState(null);
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -42,64 +46,51 @@ export default function Dashboard() {
     },
   ];
 
-  // Handle company filter change
-  const handleCompanyChange = (company) => {
-    setSelectedCompany(company);
-    processMetricsForCompany(company);
-  };
-
-  // Process metrics based on selected company
-  const processMetricsForCompany = async (company) => {
-    if (!reports || reports.length === 0) return;
-
-    try {
-      if (company) {
-        // Use the specialized company metrics API
-        const companyMetrics = await fetchCompanyMetrics(company);
-        setMetrics(companyMetrics);
-      } else {
-        // Use the general metrics summary API
-        const data = await fetchMetricsSummary();
-        
-        // Create a properly structured metrics object
-        const processedMetrics = {
-          // Ensure these properties exist with fallbacks
-          totalIncidents: data.totalIncidents ?? 0,
-          totalNearMisses: data.totalNearMisses ?? 0,
-          firstAidCount: data.firstAidCount ?? 0,
-          medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
-          trainingCompliance: data.trainingCompliance ?? 0,
-          riskScore: data.riskScore ?? 0,
-          
-          // Ensure the leading object exists
-          leading: {
-            ...data.leading,
-            // Either use existing KPIs or defaults
-            kpis: (data.leading?.kpis && data.leading.kpis.length > 0) 
-              ? data.leading.kpis 
-              : defaultKpis
-          },
-          
-          // Create lagging metrics if they don't exist
-          lagging: data.lagging || {
-            incidentCount: data.totalIncidents ?? 0,
-            nearMissCount: data.totalNearMisses ?? 0,
-            firstAidCount: data.firstAidCount ?? 0,
-            medicalTreatmentCount: data.medicalTreatmentCount ?? 0
-          }
-        };
-        
-        // Store processed metrics
-        setMetrics(processedMetrics);
-      }
-    } catch (error) {
-      console.error('Error processing metrics for company:', error);
-      setMetrics(createDefaultMetrics());
+  // Deep equality check function
+  const deepEqual = (obj1, obj2) => {
+    if (obj1 === obj2) return true;
+    
+    if (typeof obj1 !== 'object' || obj1 === null || 
+        typeof obj2 !== 'object' || obj2 === null) {
+      return false;
     }
+    
+    const keys1 = Object.keys(obj1);
+    const keys2 = Object.keys(obj2);
+    
+    if (keys1.length !== keys2.length) return false;
+    
+    for (const key of keys1) {
+      if (!keys2.includes(key)) return false;
+      
+      if (!deepEqual(obj1[key], obj2[key])) return false;
+    }
+    
+    return true;
   };
+
+  // Function to normalize KPI data
+  const normalizeKpiData = (kpis) => {
+    if (!kpis || !Array.isArray(kpis)) return [];
+    
+    // Map to ensure consistent structure and naming
+    return kpis.map(kpi => ({
+      id: kpi.id || kpi.name.toLowerCase().replace(/\s+/g, ''),
+      name: kpi.name,
+      actual: kpi.actual || 0,
+      target: kpi.target || 100,
+      unit: kpi.unit || '%'
+    }));
+  };
+
+  // Handle company filter change
+  const handleCompanyChange = useCallback((company) => {
+    setSelectedCompany(company);
+    setAiRefreshTrigger(new Date()); // Trigger AI refresh when company changes
+  }, []);
 
   // Create default metrics object for fallback
-  const createDefaultMetrics = () => {
+  const createDefaultMetrics = useCallback(() => {
     return {
       totalIncidents: 0,
       totalNearMisses: 0,
@@ -116,77 +107,120 @@ export default function Dashboard() {
       leading: {
         trainingCompleted: 0,
         inspectionsCompleted: 0,
-        kpis: defaultKpis
+        kpis: defaultKpis.map(kpi => ({ ...kpi })) // Create a new array with copied objects
       }
     };
-  };
+  }, [defaultKpis]);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
+  // Process metrics based on selected company
+  const processMetricsForCompany = useCallback(async (company) => {
+    if (!reports || reports.length === 0) return;
+
+    try {
+      let newMetrics;
+      
+      if (company) {
+        // Use the specialized company metrics API
+        newMetrics = await fetchCompanyMetrics(company);
         
-        // Fetch all reports first
-        const reportData = await fetchReports();
-        setReports(reportData);
-        
-        if (selectedCompany) {
-          // Process metrics for selected company
-          processMetricsForCompany(selectedCompany);
-        } else {
-          // Use the API service to get metrics summary
-          const data = await fetchMetricsSummary();
-          
-          // Create a properly structured metrics object
-          const processedMetrics = {
-            // Ensure these properties exist with fallbacks
-            totalIncidents: data.totalIncidents ?? 0,
-            totalNearMisses: data.totalNearMisses ?? 0,
-            firstAidCount: data.firstAidCount ?? 0,
-            medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
-            trainingCompliance: data.trainingCompliance ?? 0,
-            riskScore: data.riskScore ?? 0,
-            
-            // Ensure the leading object exists
-            leading: {
-              ...data.leading,
-              // Either use existing KPIs or defaults
-              kpis: (data.leading?.kpis && data.leading.kpis.length > 0) 
-                ? data.leading.kpis 
-                : defaultKpis
-            },
-            
-            // Create lagging metrics if they don't exist
-            lagging: data.lagging || {
-              incidentCount: data.totalIncidents ?? 0,
-              nearMissCount: data.totalNearMisses ?? 0,
-              firstAidCount: data.firstAidCount ?? 0,
-              medicalTreatmentCount: data.medicalTreatmentCount ?? 0
-            }
-          };
-          
-          // Store processed metrics
-          setMetrics(processedMetrics);
+        // Ensure KPIs are normalized
+        if (newMetrics?.leading?.kpis) {
+          newMetrics.leading.kpis = normalizeKpiData(newMetrics.leading.kpis);
         }
+      } else {
+        // Use the general metrics summary API
+        const data = await fetchMetricsSummary();
         
-        setError(null);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setError(error.message);
+        // Create a properly structured metrics object
+        newMetrics = {
+          // Ensure these properties exist with fallbacks
+          totalIncidents: data.totalIncidents ?? 0,
+          totalNearMisses: data.totalNearMisses ?? 0,
+          firstAidCount: data.firstAidCount ?? 0,
+          medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
+          trainingCompliance: data.trainingCompliance ?? 0,
+          riskScore: data.riskScore ?? 0,
+          
+          // Ensure the leading object exists
+          leading: {
+            ...data.leading,
+            // Either use existing KPIs or defaults
+            kpis: (data.leading?.kpis && data.leading.kpis.length > 0) 
+              ? normalizeKpiData(data.leading.kpis)
+              : defaultKpis.map(kpi => ({ ...kpi }))
+          },
+          
+          // Create lagging metrics if they don't exist
+          lagging: data.lagging || {
+            incidentCount: data.totalIncidents ?? 0,
+            nearMissCount: data.totalNearMisses ?? 0,
+            firstAidCount: data.firstAidCount ?? 0,
+            medicalTreatmentCount: data.medicalTreatmentCount ?? 0
+          }
+        };
+      }
+      
+      // Only update if metrics have actually changed
+      if (!previousMetrics || !deepEqual(newMetrics, previousMetrics)) {
+        console.log('Metrics have changed, updating state');
+        setMetrics(newMetrics);
+        setPreviousMetrics(newMetrics);
+      } else {
+        console.log('Metrics unchanged, skipping update');
+      }
+    } catch (error) {
+      console.error('Error processing metrics for company:', error);
+      if (!metrics) {
         setMetrics(createDefaultMetrics());
-      } finally {
-        setLoading(false);
       }
     }
+  }, [reports, defaultKpis, previousMetrics, createDefaultMetrics, normalizeKpiData]);
 
+  // Function to fetch data (separate from useEffect for cleaner code)
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all reports first
+      const reportData = await fetchReports();
+      
+      // Check if we have new reports - this would trigger an AI refresh
+      if (reportData.length !== reportCount) {
+        setReportCount(reportData.length);
+        setAiRefreshTrigger(new Date()); // Trigger AI refresh when report count changes
+      }
+      
+      setReports(reportData);
+      
+      // Process metrics for selected company
+      await processMetricsForCompany(selectedCompany);
+      
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError(error.message);
+      setMetrics(createDefaultMetrics());
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCompany, reportCount, processMetricsForCompany, createDefaultMetrics]);
+
+  // Effect for initial load and regular refresh of metrics
+  useEffect(() => {
+    // Fetch data on mount and when refresh timestamp changes
     fetchData();
-    
-    // Refresh data every 30 seconds
-    const intervalId = setInterval(fetchData, 30000);
+  }, [fetchData, refreshTimestamp]);
+
+  // Set up automatic refresh timer
+  useEffect(() => {
+    // Refresh metrics every 30 seconds
+    const intervalId = setInterval(() => {
+      setRefreshTimestamp(new Date());
+    }, 30000);
     
     // Clean up interval on unmount
     return () => clearInterval(intervalId);
-  }, [selectedCompany]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -281,7 +315,12 @@ export default function Dashboard() {
         </div>
 
         <div className="mt-6">
-          <AIPanel metrics={metrics} companyName={selectedCompany} />
+          {/* Pass aiRefreshTrigger to only refresh AI when necessary */}
+          <AIPanel 
+            metrics={metrics} 
+            companyName={selectedCompany} 
+            refreshTrigger={aiRefreshTrigger} 
+          />
         </div>
         
         {/* Only show company comparison when not filtering to a specific company */}
