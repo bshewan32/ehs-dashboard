@@ -22,11 +22,39 @@ export default function Dashboard() {
         console.log('Dashboard - Fetched reports:', reportsData);
         setReports(reportsData);
         
-        // Also fetch the metrics summary to ensure we have the latest data
+        // Also fetch the metrics summary
         const metricsData = await fetchMetricsSummary();
         console.log('Dashboard - Fetched metrics summary:', metricsData);
-        setMetrics(metricsData);
         
+        // IMPORTANT FIX: Ensure metrics has proper structure with KPI data
+        // If metricsData is missing the leading structure but reports have it,
+        // copy the KPIs from the most recent report
+        if (reportsData && reportsData.length > 0) {
+          const mostRecent = reportsData[reportsData.length - 1];
+          
+          // Check if we need to fix the metrics structure
+          if (mostRecent?.metrics?.leading?.kpis && 
+              Array.isArray(mostRecent.metrics.leading.kpis) && 
+              (!metricsData.leading || !metricsData.leading.kpis)) {
+            
+            console.log('Fixing metrics structure by adding KPIs from most recent report');
+            
+            // Create proper structure if needed
+            if (!metricsData.leading) {
+              metricsData.leading = { 
+                trainingCompleted: mostRecent.metrics.leading.trainingCompleted || 0,
+                inspectionsCompleted: mostRecent.metrics.leading.inspectionsCompleted || 0,
+                kpis: []
+              };
+            }
+            
+            // Copy KPIs to metrics object
+            metricsData.leading.kpis = mostRecent.metrics.leading.kpis;
+            console.log('Updated metrics with KPIs:', metricsData);
+          }
+        }
+        
+        setMetrics(metricsData);
         setError(null);
       } catch (err) {
         console.error('Error loading dashboard data:', err);
@@ -38,7 +66,7 @@ export default function Dashboard() {
 
     loadDashboardData();
   }, []);
-
+  
   // Function to verify that we have KPI data
   const verifyKpiData = () => {
     let kpiFound = false;
