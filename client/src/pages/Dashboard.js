@@ -17,13 +17,15 @@ export default function Dashboard() {
     const loadDashboardData = async () => {
       setLoading(true);
       try {
-        // Fetch metrics summary
-        const metricsData = await fetchMetricsSummary();
-        setMetrics(metricsData);
-        
-        // Also fetch reports for child components that need the full report data
+        // Fetch all reports first for the full dataset
         const reportsData = await fetchReports();
+        console.log('Dashboard - Fetched reports:', reportsData);
         setReports(reportsData);
+        
+        // Also fetch the metrics summary to ensure we have the latest data
+        const metricsData = await fetchMetricsSummary();
+        console.log('Dashboard - Fetched metrics summary:', metricsData);
+        setMetrics(metricsData);
         
         setError(null);
       } catch (err) {
@@ -37,20 +39,32 @@ export default function Dashboard() {
     loadDashboardData();
   }, []);
 
-  if (error) {
-    return (
-      <div className="p-6 bg-red-50 border border-red-200 rounded text-red-600">
-        <h2 className="text-xl font-bold mb-2">Error</h2>
-        <p>{error}</p>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
+  // Function to verify that we have KPI data
+  const verifyKpiData = () => {
+    let kpiFound = false;
+    let kpiSource = null;
+    
+    // Check metrics object first
+    if (metrics && metrics.leading && Array.isArray(metrics.leading.kpis) && metrics.leading.kpis.length > 0) {
+      kpiFound = true;
+      kpiSource = 'metrics.leading.kpis';
+      console.log('Dashboard - KPIs found in metrics:', metrics.leading.kpis);
+    } 
+    // Then check reports
+    else if (reports && reports.length > 0) {
+      const mostRecent = reports[reports.length - 1];
+      if (mostRecent && mostRecent.metrics && mostRecent.metrics.leading && 
+          Array.isArray(mostRecent.metrics.leading.kpis) && mostRecent.metrics.leading.kpis.length > 0) {
+        kpiFound = true;
+        kpiSource = 'reports[latest].metrics.leading.kpis';
+        console.log('Dashboard - KPIs found in most recent report:', mostRecent.metrics.leading.kpis);
+      }
+    }
+    
+    return { kpiFound, kpiSource };
+  };
+
+  const { kpiFound, kpiSource } = verifyKpiData();
 
   return (
     <div className="space-y-6 p-6">
@@ -80,6 +94,17 @@ export default function Dashboard() {
           </div>
           <p className="mt-4 text-gray-500">Loading metrics...</p>
         </div>
+      ) : error ? (
+        <div className="p-6 bg-red-50 border border-red-200 rounded text-red-600">
+          <h2 className="text-xl font-bold mb-2">Error</h2>
+          <p>{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
       ) : (
         <>
           {/* Pass both metrics and reports to child components */}
@@ -87,63 +112,37 @@ export default function Dashboard() {
           <KPIOverview metrics={metrics} reports={reports} />
           <TrendCharts reports={reports} />
           <AIPanel metrics={metrics} reports={reports} />
+          
+          {/* Debug information */}
+          <div className="p-4 bg-white rounded shadow border-l-4 border-yellow-400">
+            <h2 className="text-lg font-medium mb-2">Debug Information</h2>
+            <div className="text-sm text-gray-600">
+              <div><strong>Reports loaded:</strong> {reports.length}</div>
+              <div><strong>Metrics loaded:</strong> {metrics ? 'Yes' : 'No'}</div>
+              <div><strong>KPI data found:</strong> {kpiFound ? '✅ Yes' : '❌ No'}</div>
+              {kpiSource && <div><strong>KPI source:</strong> {kpiSource}</div>}
+              
+              <div className="mt-3">
+                <strong>Data verification:</strong>
+                <ul className="list-disc list-inside mt-1 ml-2">
+                  <li className={metrics ? 'text-green-600' : 'text-red-600'}>
+                    Metrics object: {metrics ? 'Present' : 'Missing'}
+                  </li>
+                  <li className={metrics?.leading ? 'text-green-600' : 'text-red-600'}>
+                    Leading metrics: {metrics?.leading ? 'Present' : 'Missing'}
+                  </li>
+                  <li className={Array.isArray(metrics?.leading?.kpis) ? 'text-green-600' : 'text-red-600'}>
+                    KPIs array: {Array.isArray(metrics?.leading?.kpis) ? 'Present' : 'Missing'}
+                  </li>
+                  <li className={metrics?.leading?.kpis?.length > 0 ? 'text-green-600' : 'text-red-600'}>
+                    KPIs data: {metrics?.leading?.kpis?.length > 0 ? 'Present' : 'Empty or missing'}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </>
       )}
     </div>
   );
 }
-
-// import React, { useEffect, useState } from 'react';
-// import { Link } from 'react-router-dom';
-// import MetricsOverview from '../components/dashboard/MetricsOverview';
-// import KPIOverview from '../components/dashboard/KPIOverview';
-// import AIPanel from '../components/dashboard/AIPanel';
-// import TrendCharts from '../components/dashboard/TrendCharts';
-
-// const api_url = process.env.REACT_APP_API_URL;
-
-// export default function Dashboard() {
-//   const [metrics, setMetrics] = useState(null);
-
-//   useEffect(() => {
-//     async function fetchMetrics() {
-//       console.log('API URL:', api_url); // ✅ Add this
-//       try {
-//         const response = await fetch(`${api_url}/api/reports/metrics/summary`);
-//         const data = await response.json();
-//         console.log('Metrics received:', data); // ✅ Also helpful
-//         setMetrics(data);
-//       } catch (error) {
-//         console.error('Error fetching metrics:', error);
-//       }
-//     }
-  
-//     fetchMetrics();
-//   }, []);
-
-    
-
-//   return (
-//     <div className="space-y-6 p-6">
-//       <div className="flex justify-between items-center">
-//         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-//         <Link to="/report/new">
-//           <button className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700">
-//             + Create New Report
-//           </button>
-//         </Link>
-//       </div>
-
-//       {!metrics ? (
-//         <div className="text-center text-gray-500">Loading metrics...</div>
-//       ) : (
-//         <>
-//           <MetricsOverview metrics={metrics} />
-//           <KPIOverview metrics={metrics} />
-//           <TrendCharts />
-//           <AIPanel metrics={metrics} />
-//         </>
-//       )}
-//     </div>
-//   );
-// }

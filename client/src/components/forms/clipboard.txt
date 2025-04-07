@@ -1,0 +1,64 @@
+{/* Summary Metrics Section */}
+      <div className="pt-6 border-t mt-8">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Summary Metrics</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Training Compliance (%)</label>
+            <input
+              type="number"
+              name="metrics.trainingCompliance"
+              value={formData.metrics.trainingCompliance}
+              onChange={handleChange}
+              min="0"
+              max="100"
+              step="0.1"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Risk Score (1-10)</label>
+            <input
+              type="number"
+              name="metrics.riskScore"
+              value={formData.metrics.riskScore}
+              onChange={handleChange}
+              min="0"
+              max="10"
+              step="0.1"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Form Data Preview */}
+      <div className="pt-6 border-t mt-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-gray-800">Form Data Preview</h2>
+          <button
+            type="button"
+            className="text-sm text-blue-600 hover:text-blue-800"
+            onClick={() => {
+              // Log KPI data specifically
+              console.log('KPI data in form:', formData.metrics?.leading?.kpis || 'Not found');
+              console.log('Complete form data:', formData);
+            }}
+          >
+            Log Data
+          </button>
+        </div>
+        <div className="bg-gray-100 p-4 rounded-md">
+          <h3 className="text-sm font-medium mb-2">KPIs to be submitted:</h3>
+          {Array.isArray(formData.metrics?.leading?.kpis) && formData.metrics.leading.kpis.length > 0 ? (
+            <ul className="text-xs space-y-1">
+              {formData.metrics.leading.kpis.map((kpi, index) => (
+                <li key={index}>
+                  {kpi.name}: {kpi.actual} {kpi.unit} (Target: {kpi.target} {kpi.unit})
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-red-500">No KPIs found in form data structure</p>
+          )}
+        </div>
+      </div>

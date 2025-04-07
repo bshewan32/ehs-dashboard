@@ -53,83 +53,176 @@ export default function ReportForm() {
   });
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+  const { name, value } = e.target;
+  
+  // Handle KPI fields
+  if (name.startsWith('kpi_')) {
+    const [_, kpiId] = name.split('_');
     
-    // Handle nested properties
-    if (name.includes('.')) {
-      const [section, subsection, field] = name.split('.');
+    setFormData(prev => {
+      // Create a copy of the current state
+      const newState = { ...prev };
+      
+      // Make sure the nested structure exists
+      if (!newState.metrics) newState.metrics = {};
+      if (!newState.metrics.leading) newState.metrics.leading = { trainingCompleted: 0, inspectionsCompleted: 0, kpis: [] };
+      if (!Array.isArray(newState.metrics.leading.kpis)) newState.metrics.leading.kpis = [];
+      
+      // Find the KPI with this ID if it exists
+      const kpiIndex = newState.metrics.leading.kpis.findIndex(k => k.id === kpiId);
+      
+      if (kpiIndex !== -1) {
+        // Update the existing KPI
+        newState.metrics.leading.kpis[kpiIndex].actual = value === '' ? 0 : Number(value);
+      } else {
+        // Add a new KPI with this ID
+        let kpiName = 'KPI';
+        let kpiUnit = '%';
+        let kpiTarget = 100;
+        
+        // Set defaults based on ID
+        switch (kpiId) {
+          case 'nearMissRate':
+            kpiName = 'Near Miss Reporting Rate';
+            break;
+          case 'criticalRiskVerification':
+            kpiName = 'Critical Risk Control Verification';
+            kpiTarget = 95;
+            break;
+          case 'electricalSafetyCompliance':
+            kpiName = 'Electrical Safety Compliance';
+            break;
+        }
+        
+        // Add the new KPI
+        newState.metrics.leading.kpis.push({
+          id: kpiId,
+          name: kpiName,
+          actual: value === '' ? 0 : Number(value),
+          target: kpiTarget,
+          unit: kpiUnit
+        });
+      }
+      
+      console.log('Updated KPIs:', newState.metrics.leading.kpis);
+      return newState;
+    });
+  }
+  // Handle metrics.trainingCompliance and metrics.riskScore specifically
+  else if (name === 'metrics.trainingCompliance' || name === 'metrics.riskScore') {
+    const field = name.split('.')[1]; // Get either 'trainingCompliance' or 'riskScore'
+    
+    setFormData(prev => ({
+      ...prev,
+      metrics: {
+        ...prev.metrics,
+        [field]: value === '' ? 0 : Number(value)
+      }
+    }));
+    
+    console.log(`Updated ${field}:`, value);
+  }
+  // Handle other nested metrics fields
+  else if (name.includes('.')) {
+    const parts = name.split('.');
+    
+    // Handle two-level nesting (e.g., metrics.lagging)
+    if (parts.length === 2) {
+      const [section, field] = parts;
+      setFormData(prev => ({
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [field]: value === '' ? 0 : Number(value)
+        }
+      }));
+    } 
+    // Handle three-level nesting (e.g., metrics.lagging.incidentCount)
+    else if (parts.length === 3) {
+      const [section, subsection, field] = parts;
       setFormData(prev => ({
         ...prev,
         [section]: {
           ...prev[section],
           [subsection]: {
-            ...prev[section][subsection],
+            ...prev[section]?.[subsection],
             [field]: value === '' ? 0 : Number(value)
           }
         }
       }));
-    } 
-    // Handle KPI changes
-    else if (name.startsWith('kpi_')) {
-      const [_, kpiId] = name.split('_');
-      setFormData(prev => {
-        const updatedKpis = prev.metrics.leading.kpis.map(kpi => {
-          if (kpi.id === kpiId) {
-            return {
-              ...kpi,
-              actual: value === '' ? 0 : Number(value)
-            };
-          }
-          return kpi;
-        });
-        
-        return {
-          ...prev,
-          metrics: {
-            ...prev.metrics,
-            leading: {
-              ...prev.metrics.leading,
-              kpis: updatedKpis
-            }
-          }
-        };
-      });
     }
-    // Handle direct properties
-    else if (name === 'trainingCompliance' || name === 'riskScore') {
-      setFormData(prev => ({
-        ...prev,
-        metrics: {
-          ...prev.metrics,
-          [name]: value === '' ? 0 : Number(value)
+  }
+  // Handle direct properties like companyName
+  else {
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  }
+};      
+  
+  // client/src/components/forms/ReportForm.js - handleSubmit update
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setIsSubmitting(true);
+  setSubmitError(null);
+
+  // Log the form data structure before submission
+  console.log('Form data before submission:', formData);
+
+  try {
+    // Make sure KPIs are properly nested
+    if (!formData.metrics.leading) {
+      formData.metrics.leading = {
+        trainingCompleted: 0,
+        inspectionsCompleted: 0,
+        kpis: []
+      };
+    }
+    
+    // Ensure KPIs array exists and has values
+    if (!Array.isArray(formData.metrics.leading.kpis) || formData.metrics.leading.kpis.length === 0) {
+      // Add default KPIs with the form values
+      formData.metrics.leading.kpis = [
+        {
+          id: 'nearMissRate',
+          name: 'Near Miss Reporting Rate',
+          actual: parseFloat(formData.kpi_nearMissRate || 0),
+          target: 100,
+          unit: '%'
+        },
+        {
+          id: 'criticalRiskVerification',
+          name: 'Critical Risk Control Verification',
+          actual: parseFloat(formData.kpi_criticalRiskVerification || 0),
+          target: 95,
+          unit: '%'
+        },
+        {
+          id: 'electricalSafetyCompliance',
+          name: 'Electrical Safety Compliance',
+          actual: parseFloat(formData.kpi_electricalSafetyCompliance || 0),
+          target: 100,
+          unit: '%'
         }
-      }));
+      ];
     }
-    // Handle top-level fields like companyName
-    else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setSubmitError(null);
-
-    try {
-      await submitReport(formData);
-      alert('Report submitted successfully!');
-      navigate('/');
-    } catch (err) {
-      console.error('Error submitting report:', err);
-      setSubmitError(err.message || 'Failed to submit report. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    
+    // Log the final structure to verify
+    console.log('Final data structure for submission:', formData);
+    
+    // Submit the report
+    await submitReport(formData);
+    alert('Report submitted successfully!');
+    navigate('/');
+  } catch (err) {
+    console.error('Error submitting report:', err);
+    setSubmitError(err.message || 'Failed to submit report. Please try again.');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-lg shadow p-6">
@@ -296,38 +389,71 @@ export default function ReportForm() {
         </div>
       </div>
 
+
       {/* Summary Metrics Section */}
       <div className="pt-6 border-t mt-8">
         <h2 className="text-xl font-bold text-gray-800 mb-4">Summary Metrics</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Training Compliance (%)</label>
-            <input
-              type="number"
-              name="trainingCompliance"
-              value={formData.metrics.trainingCompliance}
-              onChange={handleChange}
-              min="0"
-              max="100"
-              step="0.1"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Risk Score (1-10)</label>
-            <input
-              type="number"
-              name="riskScore"
-              value={formData.metrics.riskScore}
-              onChange={handleChange}
-              min="0"
-              max="10"
-              step="0.1"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-            />
-          </div>
+       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Training Compliance (%)</label>
+          <input
+            type="number"
+            name="metrics.trainingCompliance"
+            value={formData.metrics.trainingCompliance}
+            onChange={handleChange}
+            min="0"
+            max="100"
+            step="0.1"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Risk Score (1-10)</label>
+          <input
+            type="number"
+            name="metrics.riskScore"
+            value={formData.metrics.riskScore}
+            onChange={handleChange}
+            min="0"
+            max="10"
+            step="0.1"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+          />
         </div>
       </div>
+
+      {/* Form Data Preview */}
+      <div className="pt-6 border-t mt-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-gray-800">Form Data Preview</h2>
+          <button
+            type="button"
+            className="text-sm text-blue-600 hover:text-blue-800"
+            onClick={() => {
+              // Log KPI data specifically
+              console.log('KPI data in form:', formData.metrics?.leading?.kpis || 'Not found');
+              console.log('Complete form data:', formData);
+            }}
+          >
+            Log Data
+          </button>
+        </div>
+        <div className="bg-gray-100 p-4 rounded-md">
+          <h3 className="text-sm font-medium mb-2">KPIs to be submitted:</h3>
+          {Array.isArray(formData.metrics?.leading?.kpis) && formData.metrics.leading.kpis.length > 0 ? (
+            <ul className="text-xs space-y-1">
+              {formData.metrics.leading.kpis.map((kpi, index) => (
+                <li key={index}>
+                  {kpi.name}: {kpi.actual} {kpi.unit} (Target: {kpi.target} {kpi.unit})
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-red-500">No KPIs found in form data structure</p>
+          )}
+        </div>
+      </div>
+      
 
       {/* Submit buttons */}
       <div className="pt-6 border-t mt-8 flex justify-end space-x-3">
@@ -362,148 +488,3 @@ export default function ReportForm() {
   );
 }
 
-// import React, { useState } from 'react';
-
-// export default function ReportForm() {
-//   const [formData, setFormData] = useState({
-//     companyName: '',
-//     reportPeriod: '',
-//     reportType: 'Monthly',
-//     totalIncidents: 0,
-//     totalNearMisses: 0,
-//     firstAidCount: 0,
-//     medicalTreatmentCount: 0,
-//     trainingCompliance: 0,
-//     riskScore: 0,
-//   });
-
-//   const handleChange = (e) => {
-//     const { name, value } = e.target;
-//     setFormData((prev) => ({ ...prev, [name]: value }));
-//   };
-
-//   const handleSubmit = async (e) => {
-//     e.preventDefault();
-
-//     const payload = {
-//       companyName: formData.companyName,
-//       reportPeriod: formData.reportPeriod,
-//       reportType: formData.reportType,
-//       metrics: {
-//         totalIncidents: parseInt(formData.totalIncidents),
-//         totalNearMisses: parseInt(formData.totalNearMisses),
-//         firstAidCount: parseInt(formData.firstAidCount),
-//         medicalTreatmentCount: parseInt(formData.medicalTreatmentCount),
-//         trainingCompliance: parseFloat(formData.trainingCompliance),
-//         riskScore: parseFloat(formData.riskScore),
-//       },
-//     };
-
-//     try {
-//       const res = await fetch(`${process.env.REACT_APP_API_URL}/api/reports`, {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify(payload),
-//       });
-//       const data = await res.json();
-//       alert(data.message);
-//     } catch (err) {
-//       console.error('Error submitting report:', err);
-//       alert('Submission failed.');
-//     }
-//   };
-
-//   return (
-//     <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-white rounded shadow max-w-xl mx-auto mt-6">
-//       <h2 className="text-xl font-bold">Submit New Report</h2>
-//       <div>
-//         <label className="block text-sm font-medium">Company Name</label>
-//         <input
-//           type="text"
-//           name="companyName"
-//           value={formData.companyName}
-//           onChange={handleChange}
-//           className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
-//           required
-//         />
-//       </div>
-//       <div>
-//         <label className="block text-sm font-medium">Report Period</label>
-//         <input
-//           type="text"
-//           name="reportPeriod"
-//           value={formData.reportPeriod}
-//           onChange={handleChange}
-//           placeholder="e.g. Q1 2025"
-//           className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
-//           required
-//         />
-//       </div>
-//       <div>
-//         <label className="block text-sm font-medium">Total Incidents</label>
-//         <input
-//           type="number"
-//           name="totalIncidents"
-//           value={formData.totalIncidents}
-//           onChange={handleChange}
-//           className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
-//         />
-//       </div>
-//       <div>
-//         <label className="block text-sm font-medium">Total Near Misses</label>
-//         <input
-//           type="number"
-//           name="totalNearMisses"
-//           value={formData.totalNearMisses}
-//           onChange={handleChange}
-//           className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
-//         />
-//       </div>
-//       <div>
-//         <label className="block text-sm font-medium">First Aid Cases</label>
-//         <input
-//           type="number"
-//           name="firstAidCount"
-//           value={formData.firstAidCount}
-//           onChange={handleChange}
-//           className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
-//         />
-//       </div>
-//       <div>
-//         <label className="block text-sm font-medium">Medical Treatments</label>
-//         <input
-//           type="number"
-//           name="medicalTreatmentCount"
-//           value={formData.medicalTreatmentCount}
-//           onChange={handleChange}
-//           className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
-//         />
-//       </div>
-//       <div>
-//         <label className="block text-sm font-medium">Training Compliance (%)</label>
-//         <input
-//           type="number"
-//           name="trainingCompliance"
-//           value={formData.trainingCompliance}
-//           onChange={handleChange}
-//           step="0.1"
-//           className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
-//         />
-//       </div>
-//       <div>
-//         <label className="block text-sm font-medium">Average Risk Score</label>
-//         <input
-//           type="number"
-//           name="riskScore"
-//           value={formData.riskScore}
-//           onChange={handleChange}
-//           step="0.1"
-//           className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
-//         />
-//       </div>
-//       <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
-//         Submit Report
-//       </button>
-//     </form>
-//   );
-// }
