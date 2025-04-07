@@ -19,6 +19,8 @@ router.get('/', async (req, res) => {
   }
 });
 
+// server/routes/reports.js - Just the metrics summary endpoint
+
 /**
  * @route   GET /api/reports/metrics/summary
  * @desc    Get summary metrics from most recent report
@@ -33,20 +35,39 @@ router.get('/metrics/summary', async (req, res) => {
       return res.status(404).json({ message: 'No reports found' });
     }
     
-    // Ensure metrics has the right structure before returning
-    const metrics = latestReport.metrics || {};
+    // Clone the metrics from the latest report
+    let metrics = JSON.parse(JSON.stringify(latestReport.metrics || {}));
     
-    // Make sure leading.kpis exists and is accessible
-    if (!metrics.leading) {
-      metrics.leading = {};
+    // Ensure the structure is complete
+    if (!metrics.lagging) {
+      metrics.lagging = {
+        incidentCount: 0,
+        nearMissCount: 0,
+        firstAidCount: 0,
+        medicalTreatmentCount: 0,
+        lostTimeInjuryCount: 0
+      };
     }
     
-    if (!metrics.leading.kpis) {
+    if (!metrics.leading) {
+      metrics.leading = {
+        trainingCompleted: 0,
+        inspectionsCompleted: 0,
+        kpis: []
+      };
+    } else if (!metrics.leading.kpis) {
       metrics.leading.kpis = [];
     }
     
-    // Log the KPIs for debugging
-    console.log('KPIs in metrics summary:', metrics.leading.kpis);
+    // If KPIs exist at top level, move them to the leading.kpis array
+    if (Array.isArray(metrics.kpis) && metrics.kpis.length > 0) {
+      metrics.leading.kpis = metrics.kpis;
+      delete metrics.kpis;
+    }
+    
+    // Log what we're returning
+    console.log('Returning metrics summary:');
+    console.log('- KPIs:', metrics.leading.kpis);
     
     // Return the structured metrics
     res.json(metrics);
