@@ -46,7 +46,7 @@ export default function ReportForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+  
     // IMPORTANT: Create a structure that exactly matches the MongoDB model
     const payload = {
       companyName: formData.companyName,
@@ -94,11 +94,12 @@ export default function ReportForm() {
         riskScore: parseFloat(formData.riskScore)
       }
     };
-
+  
     console.log('Submitting report with payload:', JSON.stringify(payload, null, 2));
-
+  
     try {
       const res = await submitReport(payload);
+      markDataChanged(); // Mark that data has changed
       alert(res.message || 'Report submitted successfully');
       navigate('/'); // Redirect to dashboard after success
     } catch (err) {

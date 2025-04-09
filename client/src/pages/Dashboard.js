@@ -5,12 +5,15 @@ import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
 import { fetchMetricsSummary } from '../components/services/api';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastFetchTime, setLastFetchTime] = useState(0);
+  const [exporting, setExporting] = useState(false); // Add this state variable
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -37,12 +40,13 @@ export default function Dashboard() {
     },
   ];
 
-  // Use a memoized fetch function to prevent re-creation on every render
+  // Modify your fetchMetrics function to not depend on metrics
   const fetchMetrics = useCallback(async () => {
     // Throttle API calls - only fetch if it's been at least 10 seconds
     const now = Date.now();
-    if (now - lastFetchTime < 10000 && metrics) {
-      return; // Skip this fetch if we've fetched recently and have data
+    if (now - lastFetchTime < 10000) {
+      console.log('Skipping fetch - too soon');
+      return; // Skip this fetch if we've fetched recently
     }
 
     try {
@@ -88,9 +92,10 @@ export default function Dashboard() {
       console.error('Error fetching metrics:', error);
       setError(error.message);
       
-      // Only set fallback metrics if we don't already have data
-      if (!metrics) {
-        setMetrics({
+      // Only set fallback metrics if we don't already have metrics
+      setMetrics(currentMetrics => {
+        if (currentMetrics) return currentMetrics;
+        return {
           totalIncidents: 0,
           totalNearMisses: 0,
           firstAidCount: 0,
@@ -108,12 +113,12 @@ export default function Dashboard() {
             inspectionsCompleted: 0,
             kpis: defaultKpis
           }
-        });
-      }
+        };
+      });
     } finally {
       setLoading(false);
     }
-  }, [lastFetchTime, metrics, defaultKpis]);
+  }, [lastFetchTime, defaultKpis]); // Remove metrics from dependencies
 
   useEffect(() => {
     // Initial fetch
@@ -126,15 +131,62 @@ export default function Dashboard() {
     return () => clearInterval(intervalId);
   }, [fetchMetrics]);
 
+  const exportToPDF = async () => {
+    const dashboardElement = document.getElementById('dashboard-content');
+    if (!dashboardElement) return;
+    
+    try {
+      // Show loading indicator
+      setExporting(true);
+      
+      // Create a PDF document
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Create a canvas from the dashboard
+      const canvas = await html2canvas(dashboardElement, {
+        scale: 2, // Higher scale for better quality
+        useCORS: true,
+        logging: false
+      });
+      
+      // Add title
+      pdf.setFontSize(16);
+      pdf.text('EHS Dashboard Report', 105, 15, { align: 'center' });
+      pdf.setFontSize(12);
+      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 22, { align: 'center' });
+      
+      // Add canvas image to PDF
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 10, 30, 190, 0);
+      
+      // Download the PDF
+      pdf.save(`EHS_Dashboard_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('Error exporting dashboard to PDF:', error);
+      alert('Failed to export dashboard to PDF');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 p-6">
+    <div id="dashboard-content" className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <Link to="/report/new">
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700">
-            + Create New Report
+        <div className="space-x-4">
+          <button
+            onClick={exportToPDF}
+            className="bg-green-600 text-white px-4 py-2 rounded-xl shadow hover:bg-green-700"
+            disabled={exporting}
+          >
+            {exporting ? 'Exporting...' : 'Export to PDF'}
           </button>
-        </Link>
+          <Link to="/report/new">
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700">
+              + Create New Report
+            </button>
+          </Link>
+        </div>
       </div>
 
       {loading && !metrics ? (

@@ -3,60 +3,99 @@ import React, { useEffect, useState, useCallback } from 'react';
 const AIPanel = ({ metrics }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [initialized, setInitialized] = useState(false);
+  const [lastMetricsHash, setLastMetricsHash] = useState('');
+  
+  // Function to create a simple hash of metrics
+  const hashMetrics = useCallback((metricsData) => {
+    if (!metricsData) return '';
+    const keyMetrics = {
+      incidents: metricsData.lagging?.incidentCount || 0,
+      nearMisses: metricsData.lagging?.nearMissCount || 0,
+      firstAid: metricsData.lagging?.firstAidCount || 0,
+      medicalTreatment: metricsData.lagging?.medicalTreatmentCount || 0,
+      trainingCompliance: metricsData.trainingCompliance || 0
+    };
+    return JSON.stringify(keyMetrics);
+  }, []);
 
   // Memoized function to generate recommendations based on metrics
   const generateRecommendations = useCallback(() => {
-    if (!metrics && initialized) return; // Don't regenerate if no new metrics and already initialized
+    if (!metrics) return; // Nothing to do without metrics
     
     try {
-      let incidentCount = 0;
-      let nearMissCount = 0;
-      let medicalTreatmentCount = 0;
-      let trainingCompliance = 0;
-
-      // Extract metrics from props if available
-      if (metrics) {
-        incidentCount = metrics.lagging?.incidentCount ?? metrics.totalIncidents ?? 0;
-        nearMissCount = metrics.lagging?.nearMissCount ?? metrics.totalNearMisses ?? 0;
-        medicalTreatmentCount = metrics.lagging?.medicalTreatmentCount ?? metrics.medicalTreatmentCount ?? 0;
-        trainingCompliance = metrics.trainingCompliance ?? 0;
-      }
-
-      const recs = [];
-
-      // Generate recommendations based on metrics
-      if (incidentCount > 5) {
-        recs.push("High number of incidents detected. Consider reviewing recent risk assessments and implementing additional safety measures.");
+      // Create hash of current metrics for comparison
+      const currentHash = hashMetrics(metrics);
+      
+      // Check if we have stored recommendations
+      const storedData = localStorage.getItem('aiRecommendations');
+      if (storedData) {
+        const { hash, recommendations: storedRecs } = JSON.parse(storedData);
+        
+        // If hash matches, use stored recommendations
+        if (hash === currentHash) {
+          console.log('Using stored AI recommendations');
+          setRecommendations(storedRecs);
+          setLastMetricsHash(currentHash);
+          setInitialized(true);
+          return;
+        }
       }
       
-      if (nearMissCount < 5) {
-        recs.push("Low near miss reporting detected. This could indicate underreporting. Consider reinforcing the importance of reporting minor events.");
-      }
-      
-      if (medicalTreatmentCount > 0) {
-        recs.push("Medical treatments reported. Ensure all incidents have been properly investigated and corrective actions implemented.");
-      }
-      
-      if (trainingCompliance < 90 && trainingCompliance > 0) {
-        recs.push(`Training compliance is at ${trainingCompliance}%. Consider ways to increase participation in safety training programs.`);
-      }
-      
-      if (incidentCount === 0 && nearMissCount === 0) {
-        recs.push("No reported incidents or near misses. Consider conducting an audit to validate reporting accuracy.");
-      }
+      // Only generate new recommendations if metrics have changed
+      if (currentHash !== lastMetricsHash || !initialized) {
+        console.log('Generating new AI recommendations');
+        
+        // Extract metrics from props
+        const incidentCount = metrics.lagging?.incidentCount ?? metrics.totalIncidents ?? 0;
+        const nearMissCount = metrics.lagging?.nearMissCount ?? metrics.totalNearMisses ?? 0;
+        const medicalTreatmentCount = metrics.lagging?.medicalTreatmentCount ?? metrics.medicalTreatmentCount ?? 0;
+        const trainingCompliance = metrics.trainingCompliance ?? 0;
 
-      if (recs.length === 0) {
-        recs.push("No significant safety concerns detected. Maintain current safety protocols and continue monitoring trends.");
-      }
+        const recs = [];
 
-      setRecommendations(recs);
-      setInitialized(true);
+        // Generate recommendations based on metrics
+        if (incidentCount > 5) {
+          recs.push("High number of incidents detected. Consider reviewing recent risk assessments and implementing additional safety measures.");
+        }
+        
+        if (nearMissCount < 5) {
+          recs.push("Low near miss reporting detected. This could indicate underreporting. Consider reinforcing the importance of reporting minor events.");
+        }
+        
+        if (medicalTreatmentCount > 0) {
+          recs.push("Medical treatments reported. Ensure all incidents have been properly investigated and corrective actions implemented.");
+        }
+        
+        if (trainingCompliance < 90 && trainingCompliance > 0) {
+          recs.push(`Training compliance is at ${trainingCompliance}%. Consider ways to increase participation in safety training programs.`);
+        }
+        
+        if (incidentCount === 0 && nearMissCount === 0) {
+          recs.push("No reported incidents or near misses. Consider conducting an audit to validate reporting accuracy.");
+        }
+
+        if (recs.length === 0) {
+          recs.push("No significant safety concerns detected. Maintain current safety protocols and continue monitoring trends.");
+        }
+
+        // Store recommendations with hash
+        localStorage.setItem('aiRecommendations', JSON.stringify({
+          hash: currentHash,
+          recommendations: recs,
+          timestamp: Date.now()
+        }));
+        
+        // Update state
+        setRecommendations(recs);
+        setLastMetricsHash(currentHash);
+        setInitialized(true);
+      }
     } catch (err) {
       console.error("Error generating recommendations:", err);
       setRecommendations(["Unable to generate recommendations at this time."]);
       setInitialized(true);
     }
-  }, [metrics, initialized]);
+  }, [metrics, lastMetricsHash, initialized, hashMetrics]);
 
   useEffect(() => {
     generateRecommendations();

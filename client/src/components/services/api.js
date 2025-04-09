@@ -68,15 +68,26 @@ export const submitReport = async (reportData) => {
   }
 };
 
+// In api.js
+let dataHasChanged = false;
+
+// Add this function to mark data as changed
+export const markDataChanged = () => {
+  dataHasChanged = true;
+};
+
+
 // Fetch reports with caching
 export const fetchReports = async (forceRefresh = false) => {
   try {
     // Return cached data if valid and not forcing refresh
-    if (!forceRefresh && isCacheValid('reports')) {
+    if (!forceRefresh && !dataHasChanged && isCacheValid('reports')) {
       console.log('Using cached reports data');
       return apiCache.reports.data;
     }
     
+    dataHasChanged = false;
+
     const res = await fetch(`${api_url}/api/reports`, {
       headers: getHeaders(),
     });
@@ -123,10 +134,13 @@ export const fetchReports = async (forceRefresh = false) => {
 export const fetchMetricsSummary = async (forceRefresh = false) => {
   try {
     // Return cached data if valid and not forcing refresh
-    if (!forceRefresh && isCacheValid('metricsSummary')) {
-      console.log('Using cached metrics summary data');
+    if (!forceRefresh && !dataHasChanged && isCacheValid('metricsSummary')) {
+      console.log('Using cached metrics summary data - no changes detected');
       return apiCache.metricsSummary.data;
     }
+    
+    // Reset the data changed flag since we're about to fetch fresh data
+    dataHasChanged = false;
     
     const response = await fetch(`${api_url}/api/reports/metrics/summary`, {
       headers: getHeaders(),
@@ -163,11 +177,13 @@ export const fetchMetricsSummary = async (forceRefresh = false) => {
 export const fetchInspections = async (forceRefresh = false) => {
   try {
     // Return cached data if valid and not forcing refresh
-    if (!forceRefresh && isCacheValid('inspections')) {
+    if (!forceRefresh && !dataHasChanged && isCacheValid('inspections')) {
       console.log('Using cached inspections data');
       return apiCache.inspections.data;
     }
     
+    dataHasChanged = false;
+
     const response = await fetch(`${api_url}/api/inspections`, {
       headers: getHeaders(),
     });
