@@ -348,7 +348,7 @@ useEffect(() => {
   }
 }, [refreshTimestamp]);
   
-  [];
+
 
   // Handle PDF export using web worker
   const handleExportToPDF = useCallback(() => {
