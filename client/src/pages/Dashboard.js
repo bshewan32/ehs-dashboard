@@ -310,160 +310,42 @@ export default function Dashboard() {
     }
   }, [metrics, aiRefreshTrigger]);
 
-  const exportToPDF = async () => {
+  // Ultra-simple PDF export that should not freeze the browser
+  const exportToPDF = () => {
     try {
       // Show loading indicator
       setExporting(true);
-      console.log("Starting PDF export process...");
+      console.log("Starting minimal PDF export...");
       
-      // Use text-only approach for reliability
-      const pdf = new jsPDF('p', 'mm', 'a4'); // portrait orientation is more reliable
+      // Create smallest possible PDF
+      const pdf = new jsPDF();
       
-      // Add title
-      pdf.setFontSize(18);
-      pdf.text('EHS Dashboard Report', 105, 15, { align: 'center' });
-      pdf.setFontSize(12);
-      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 25, { align: 'center' });
+      // Just add title and basic info
+      pdf.setFontSize(16);
+      pdf.text('EHS Dashboard Report', 105, 20, { align: 'center' });
+      pdf.setFontSize(10);
+      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 30, { align: 'center' });
+      
       if (selectedCompany) {
-        pdf.text(`Company: ${selectedCompany}`, 105, 35, { align: 'center' });
+        pdf.text(`Company: ${selectedCompany}`, 105, 40, { align: 'center' });
       }
       
-      // Add metrics summary
-      let yPos = 45;
+      // Basic metrics - just numbers
+      pdf.text("BASIC METRICS:", 20, 60);
       
-      if (metrics) {
-        // Lagging indicators
-        pdf.setFontSize(14);
-        pdf.setTextColor(0, 0, 150); // blue
-        pdf.text("SAFETY METRICS SUMMARY", 105, yPos, { align: 'center' }); 
-        yPos += 10;
-        
-        pdf.setFontSize(12);
-        pdf.setTextColor(0, 0, 0); // black
-        pdf.text("Lagging Indicators:", 20, yPos); 
-        yPos += 8;
-        
-        if (metrics.lagging) {
-          pdf.setFontSize(10);
-          pdf.text(`• Incidents: ${metrics.lagging.incidentCount || 0}`, 25, yPos); yPos += 6;
-          pdf.text(`• Near Misses: ${metrics.lagging.nearMissCount || 0}`, 25, yPos); yPos += 6;
-          pdf.text(`• First Aid Cases: ${metrics.lagging.firstAidCount || 0}`, 25, yPos); yPos += 6;
-          pdf.text(`• Medical Treatments: ${metrics.lagging.medicalTreatmentCount || 0}`, 25, yPos); yPos += 6;
-        } else {
-          pdf.text("No lagging indicators available", 25, yPos);
-          yPos += 8;
-        }
-        
-        // Leading indicators
-        yPos += 5;
-        pdf.setFontSize(12);
-        pdf.text("Leading Indicators:", 20, yPos);
-        yPos += 8;
-        
-        if (metrics.leading) {
-          pdf.setFontSize(10);
-          pdf.text(`• Training Completed: ${metrics.leading.trainingCompleted || 0}`, 25, yPos); yPos += 6;
-          pdf.text(`• Inspections Completed: ${metrics.leading.inspectionsCompleted || 0}`, 25, yPos); yPos += 6;
-          
-          if (metrics.trainingCompliance !== undefined) {
-            pdf.text(`• Training Compliance: ${metrics.trainingCompliance}%`, 25, yPos); yPos += 6;
-          }
-          
-          // Add KPIs
-          if (metrics.leading.kpis && metrics.leading.kpis.length > 0) {
-            yPos += 5;
-            pdf.setFontSize(12);
-            pdf.text("Key Performance Indicators:", 20, yPos);
-            yPos += 8;
-            
-            pdf.setFontSize(10);
-            metrics.leading.kpis.forEach(kpi => {
-              const percentOfTarget = ((kpi.actual / kpi.target) * 100).toFixed(1);
-              const status = percentOfTarget >= 90 ? "On Target" : 
-                           percentOfTarget >= 70 ? "Needs Attention" : "Critical";
-              
-              pdf.text(`• ${kpi.name}: ${kpi.actual}${kpi.unit} (${percentOfTarget}% of target)`, 25, yPos);
-              yPos += 6;
-              
-              // Add status with different colors
-              if (status === "On Target") {
-                pdf.setTextColor(0, 150, 0); // green
-              } else if (status === "Needs Attention") {
-                pdf.setTextColor(255, 150, 0); // orange
-              } else {
-                pdf.setTextColor(200, 0, 0); // red
-              }
-              
-              pdf.text(`  Status: ${status}`, 30, yPos);
-              pdf.setTextColor(0, 0, 0); // reset to black
-              yPos += 8;
-            });
-          }
-        } else {
-          pdf.text("No leading indicators available", 25, yPos);
-          yPos += 8;
-        }
-        
-        // Add AI recommendations if available
-        if (recommendations && recommendations.length > 0) {
-          // Add a page break if we're too far down
-          if (yPos > 250) {
-            pdf.addPage();
-            yPos = 20;
-          } else {
-            yPos += 10;
-          }
-          
-          pdf.setFontSize(14);
-          pdf.setTextColor(100, 0, 150); // purple
-          pdf.text("AI SAFETY RECOMMENDATIONS", 105, yPos, { align: 'center' });
-          yPos += 10;
-          
-          pdf.setFontSize(10);
-          pdf.setTextColor(0, 0, 0); // black
-          
-          recommendations.forEach((rec, index) => {
-            // Add page break if needed
-            if (yPos > 270) {
-              pdf.addPage();
-              yPos = 20;
-            }
-            
-            // Split long recommendations into multiple lines
-            const textLines = pdf.splitTextToSize(
-              `${index + 1}. ${rec}`, 
-              170 // max width
-            );
-            
-            pdf.text(textLines, 20, yPos);
-            yPos += (textLines.length * 6) + 4; // adjust y position based on number of lines
-          });
-        }
+      if (metrics && metrics.lagging) {
+        pdf.text(`Incidents: ${metrics.lagging.incidentCount || 0}`, 20, 70);
+        pdf.text(`Near Misses: ${metrics.lagging.nearMissCount || 0}`, 20, 80);
       } else {
-        pdf.text("No metrics data available", 20, yPos);
+        pdf.text("No metrics available", 20, 70);
       }
       
-      // Add footer with timestamp
-      const pageCount = pdf.internal.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        pdf.setPage(i);
-        pdf.setFontSize(8);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(
-          `EHS Dashboard Report - Generated on ${new Date().toLocaleString()} - Page ${i} of ${pageCount}`,
-          105, 
-          pdf.internal.pageSize.getHeight() - 10, 
-          { align: 'center' }
-        );
-      }
-      
-      console.log("Saving PDF...");
-      // Download the PDF
+      // Save the minimal PDF
       pdf.save(`EHS_Dashboard_${selectedCompany || 'All'}_${new Date().toISOString().split('T')[0]}.pdf`);
       console.log("PDF saved successfully");
     } catch (error) {
-      console.error('Error exporting dashboard to PDF:', error);
-      alert('Failed to export dashboard to PDF: ' + error.message);
+      console.error('Error exporting minimal PDF:', error);
+      alert('Failed to create PDF: ' + error.message);
     } finally {
       setExporting(false);
     }
