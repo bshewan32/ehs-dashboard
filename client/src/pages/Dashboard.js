@@ -279,40 +279,113 @@ export default function Dashboard() {
 
   const exportToPDF = async () => {
     const dashboardContent = document.getElementById('dashboard-content');
-    if (!dashboardContent) return;
+    if (!dashboardContent) {
+      console.error("Dashboard content element not found");
+      alert("Could not find dashboard content to export");
+      return;
+    }
     
     try {
       // Show loading indicator
       setExporting(true);
+      console.log("Starting PDF export process...");
       
-      // Create a PDF document
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      // Create a PDF document - use landscape for better fit
+      const pdf = new jsPDF('l', 'mm', 'a4'); // landscape orientation
       
-      // Create a canvas from the dashboard
+      // Fix for potential SVG rendering issues
+      const allSvgs = dashboardContent.querySelectorAll('svg');
+      const originalSvgStyles = [];
+      
+      // Temporarily modify SVGs to ensure they render correctly
+      for (let i = 0; i < allSvgs.length; i++) {
+        const svg = allSvgs[i];
+        originalSvgStyles.push({
+          width: svg.style.width,
+          height: svg.style.height
+        });
+        svg.style.width = svg.getBoundingClientRect().width + 'px';
+        svg.style.height = svg.getBoundingClientRect().height + 'px';
+      }
+      
+      console.log("Converting dashboard to canvas...");
+      
+      // Create a canvas from the dashboard with improved settings
       const canvas = await html2canvas(dashboardContent, {
-        scale: 2, // Higher scale for better quality
+        scale: 1.5, // Lower scale to avoid memory issues
         useCORS: true,
-        logging: false
+        allowTaint: true, // Allow tainted canvas
+        logging: true,
+        backgroundColor: '#FFFFFF',
+        onclone: (clonedDoc) => {
+          // Any additional preprocessing of the cloned document can be done here
+          console.log("Document cloned for canvas conversion");
+        }
       });
+      
+      // Restore original SVG styles
+      for (let i = 0; i < allSvgs.length; i++) {
+        const svg = allSvgs[i];
+        svg.style.width = originalSvgStyles[i].width;
+        svg.style.height = originalSvgStyles[i].height;
+      }
+      
+      console.log("Canvas created, generating PDF...");
+      
+      // Get dimensions
+      const imgWidth = 277; // A4 landscape width in mm (with margins)
+      const imgHeight = canvas.height * imgWidth / canvas.width;
       
       // Add title
       pdf.setFontSize(16);
-      pdf.text('EHS Dashboard Report', 105, 15, { align: 'center' });
+      pdf.text('EHS Dashboard Report', pdf.internal.pageSize.getWidth() / 2, 15, { align: 'center' });
       pdf.setFontSize(12);
-      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 22, { align: 'center' });
+      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, pdf.internal.pageSize.getWidth() / 2, 22, { align: 'center' });
       if (selectedCompany) {
-        pdf.text(`Company: ${selectedCompany}`, 105, 30, { align: 'center' });
+        pdf.text(`Company: ${selectedCompany}`, pdf.internal.pageSize.getWidth() / 2, 30, { align: 'center' });
       }
       
-      // Add canvas image to PDF
-      const imgData = canvas.toDataURL('image/png');
-      pdf.addImage(imgData, 'PNG', 10, 35, 190, 0);
+      try {
+        // Add canvas image to PDF with proper dimensions
+        const imgData = canvas.toDataURL('image/jpeg', 0.9); // Use JPEG format with 90% quality
+        pdf.addImage(imgData, 'JPEG', 10, 35, imgWidth, imgHeight);
+        console.log("Image added to PDF");
+      } catch (imgError) {
+        console.error("Error adding image to PDF:", imgError);
+        
+        // Alternative approach - try adding as separate sections
+        pdf.text("Error adding dashboard image. See text summary below:", 10, 40);
+        pdf.setFontSize(10);
+        
+        // Add text-based summary of KPIs
+        if (metrics) {
+          let yPos = 50;
+          pdf.text("SUMMARY METRICS:", 10, yPos); yPos += 7;
+          
+          if (metrics.lagging) {
+            pdf.text(`Incidents: ${metrics.lagging.incidentCount || 0}`, 10, yPos); yPos += 5;
+            pdf.text(`Near Misses: ${metrics.lagging.nearMissCount || 0}`, 10, yPos); yPos += 5;
+          }
+          
+          if (metrics.leading?.kpis?.length > 0) {
+            yPos += 3;
+            pdf.text("KEY PERFORMANCE INDICATORS:", 10, yPos); yPos += 7;
+            
+            metrics.leading.kpis.forEach(kpi => {
+              pdf.text(`${kpi.name}: ${kpi.actual}${kpi.unit} (Target: ${kpi.target}${kpi.unit})`, 10, yPos);
+              yPos += 5;
+            });
+          }
+        }
+      }
       
+      console.log("Saving PDF...");
       // Download the PDF
       pdf.save(`EHS_Dashboard_${selectedCompany || 'All'}_${new Date().toISOString().split('T')[0]}.pdf`);
+      console.log("PDF saved successfully");
     } catch (error) {
       console.error('Error exporting dashboard to PDF:', error);
-      alert('Failed to export dashboard to PDF');
+      alert('Failed to export dashboard to PDF: ' + error.message);
     } finally {
       setExporting(false);
     }
