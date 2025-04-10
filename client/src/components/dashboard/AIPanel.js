@@ -119,10 +119,15 @@ const AIPanel = ({ metrics, companyName, refreshTrigger }) => {
           try {
             const cachedData = localStorage.getItem(storageKey);
             if (cachedData) {
-              const { source } = JSON.parse(cachedData);
-              if (source) {
-                setInsightSource(source);
-              } else {
+              try {
+                const parsedCache = JSON.parse(cachedData);
+                if (parsedCache && parsedCache.source) {
+                  setInsightSource(parsedCache.source);
+                } else {
+                  setInsightSource('cache');
+                }
+              } catch (parseError) {
+                console.error('Error parsing cache:', parseError);
                 setInsightSource('cache');
               }
             }
@@ -141,8 +146,13 @@ const AIPanel = ({ metrics, companyName, refreshTrigger }) => {
         
         // Cache the fallback recommendations to avoid repeated failures
         try {
-          localStorage.setItem(storageKey, JSON.stringify({
-            hash: currentHash,
+          // Create the same storage key that was used earlier
+          const errorStorageKey = `aiRecommendations_${companyName || 'all'}`;
+          // Get a hash of current metrics
+          const errorHash = hashMetrics(metrics || {}, companyName);
+          
+          localStorage.setItem(errorStorageKey, JSON.stringify({
+            hash: errorHash,
             recommendations: fallbackRecs,
             source: 'fallback',
             timestamp: Date.now(),
