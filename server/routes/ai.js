@@ -10,8 +10,8 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const rateLimiter = {
   // Track request timestamps
   requests: [],
-  // Maximum requests per minute
-  maxRequestsPerMinute: 10,
+  // Maximum requests per minute - increased to handle the dashboard's needs
+  maxRequestsPerMinute: 30,
   // Time window in milliseconds (1 minute)
   timeWindow: 60 * 1000,
   // In-memory cache for responses to reduce API calls

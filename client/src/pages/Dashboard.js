@@ -278,105 +278,150 @@ export default function Dashboard() {
   }, []);
 
   const exportToPDF = async () => {
-    const dashboardContent = document.getElementById('dashboard-content');
-    if (!dashboardContent) {
-      console.error("Dashboard content element not found");
-      alert("Could not find dashboard content to export");
-      return;
-    }
-    
     try {
       // Show loading indicator
       setExporting(true);
       console.log("Starting PDF export process...");
       
-      // Create a PDF document - use landscape for better fit
-      const pdf = new jsPDF('l', 'mm', 'a4'); // landscape orientation
-      
-      // Fix for potential SVG rendering issues
-      const allSvgs = dashboardContent.querySelectorAll('svg');
-      const originalSvgStyles = [];
-      
-      // Temporarily modify SVGs to ensure they render correctly
-      for (let i = 0; i < allSvgs.length; i++) {
-        const svg = allSvgs[i];
-        originalSvgStyles.push({
-          width: svg.style.width,
-          height: svg.style.height
-        });
-        svg.style.width = svg.getBoundingClientRect().width + 'px';
-        svg.style.height = svg.getBoundingClientRect().height + 'px';
-      }
-      
-      console.log("Converting dashboard to canvas...");
-      
-      // Create a canvas from the dashboard with improved settings
-      const canvas = await html2canvas(dashboardContent, {
-        scale: 1.5, // Lower scale to avoid memory issues
-        useCORS: true,
-        allowTaint: true, // Allow tainted canvas
-        logging: true,
-        backgroundColor: '#FFFFFF',
-        onclone: (clonedDoc) => {
-          // Any additional preprocessing of the cloned document can be done here
-          console.log("Document cloned for canvas conversion");
-        }
-      });
-      
-      // Restore original SVG styles
-      for (let i = 0; i < allSvgs.length; i++) {
-        const svg = allSvgs[i];
-        svg.style.width = originalSvgStyles[i].width;
-        svg.style.height = originalSvgStyles[i].height;
-      }
-      
-      console.log("Canvas created, generating PDF...");
-      
-      // Get dimensions
-      const imgWidth = 277; // A4 landscape width in mm (with margins)
-      const imgHeight = canvas.height * imgWidth / canvas.width;
+      // Use text-only approach for reliability
+      const pdf = new jsPDF('p', 'mm', 'a4'); // portrait orientation is more reliable
       
       // Add title
-      pdf.setFontSize(16);
-      pdf.text('EHS Dashboard Report', pdf.internal.pageSize.getWidth() / 2, 15, { align: 'center' });
+      pdf.setFontSize(18);
+      pdf.text('EHS Dashboard Report', 105, 15, { align: 'center' });
       pdf.setFontSize(12);
-      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, pdf.internal.pageSize.getWidth() / 2, 22, { align: 'center' });
+      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 25, { align: 'center' });
       if (selectedCompany) {
-        pdf.text(`Company: ${selectedCompany}`, pdf.internal.pageSize.getWidth() / 2, 30, { align: 'center' });
+        pdf.text(`Company: ${selectedCompany}`, 105, 35, { align: 'center' });
       }
       
-      try {
-        // Add canvas image to PDF with proper dimensions
-        const imgData = canvas.toDataURL('image/jpeg', 0.9); // Use JPEG format with 90% quality
-        pdf.addImage(imgData, 'JPEG', 10, 35, imgWidth, imgHeight);
-        console.log("Image added to PDF");
-      } catch (imgError) {
-        console.error("Error adding image to PDF:", imgError);
+      // Add metrics summary
+      let yPos = 45;
+      
+      if (metrics) {
+        // Lagging indicators
+        pdf.setFontSize(14);
+        pdf.setTextColor(0, 0, 150); // blue
+        pdf.text("SAFETY METRICS SUMMARY", 105, yPos, { align: 'center' }); 
+        yPos += 10;
         
-        // Alternative approach - try adding as separate sections
-        pdf.text("Error adding dashboard image. See text summary below:", 10, 40);
-        pdf.setFontSize(10);
+        pdf.setFontSize(12);
+        pdf.setTextColor(0, 0, 0); // black
+        pdf.text("Lagging Indicators:", 20, yPos); 
+        yPos += 8;
         
-        // Add text-based summary of KPIs
-        if (metrics) {
-          let yPos = 50;
-          pdf.text("SUMMARY METRICS:", 10, yPos); yPos += 7;
+        if (metrics.lagging) {
+          pdf.setFontSize(10);
+          pdf.text(`• Incidents: ${metrics.lagging.incidentCount || 0}`, 25, yPos); yPos += 6;
+          pdf.text(`• Near Misses: ${metrics.lagging.nearMissCount || 0}`, 25, yPos); yPos += 6;
+          pdf.text(`• First Aid Cases: ${metrics.lagging.firstAidCount || 0}`, 25, yPos); yPos += 6;
+          pdf.text(`• Medical Treatments: ${metrics.lagging.medicalTreatmentCount || 0}`, 25, yPos); yPos += 6;
+        } else {
+          pdf.text("No lagging indicators available", 25, yPos);
+          yPos += 8;
+        }
+        
+        // Leading indicators
+        yPos += 5;
+        pdf.setFontSize(12);
+        pdf.text("Leading Indicators:", 20, yPos);
+        yPos += 8;
+        
+        if (metrics.leading) {
+          pdf.setFontSize(10);
+          pdf.text(`• Training Completed: ${metrics.leading.trainingCompleted || 0}`, 25, yPos); yPos += 6;
+          pdf.text(`• Inspections Completed: ${metrics.leading.inspectionsCompleted || 0}`, 25, yPos); yPos += 6;
           
-          if (metrics.lagging) {
-            pdf.text(`Incidents: ${metrics.lagging.incidentCount || 0}`, 10, yPos); yPos += 5;
-            pdf.text(`Near Misses: ${metrics.lagging.nearMissCount || 0}`, 10, yPos); yPos += 5;
+          if (metrics.trainingCompliance !== undefined) {
+            pdf.text(`• Training Compliance: ${metrics.trainingCompliance}%`, 25, yPos); yPos += 6;
           }
           
-          if (metrics.leading?.kpis?.length > 0) {
-            yPos += 3;
-            pdf.text("KEY PERFORMANCE INDICATORS:", 10, yPos); yPos += 7;
+          // Add KPIs
+          if (metrics.leading.kpis && metrics.leading.kpis.length > 0) {
+            yPos += 5;
+            pdf.setFontSize(12);
+            pdf.text("Key Performance Indicators:", 20, yPos);
+            yPos += 8;
             
+            pdf.setFontSize(10);
             metrics.leading.kpis.forEach(kpi => {
-              pdf.text(`${kpi.name}: ${kpi.actual}${kpi.unit} (Target: ${kpi.target}${kpi.unit})`, 10, yPos);
-              yPos += 5;
+              const percentOfTarget = ((kpi.actual / kpi.target) * 100).toFixed(1);
+              const status = percentOfTarget >= 90 ? "On Target" : 
+                           percentOfTarget >= 70 ? "Needs Attention" : "Critical";
+              
+              pdf.text(`• ${kpi.name}: ${kpi.actual}${kpi.unit} (${percentOfTarget}% of target)`, 25, yPos);
+              yPos += 6;
+              
+              // Add status with different colors
+              if (status === "On Target") {
+                pdf.setTextColor(0, 150, 0); // green
+              } else if (status === "Needs Attention") {
+                pdf.setTextColor(255, 150, 0); // orange
+              } else {
+                pdf.setTextColor(200, 0, 0); // red
+              }
+              
+              pdf.text(`  Status: ${status}`, 30, yPos);
+              pdf.setTextColor(0, 0, 0); // reset to black
+              yPos += 8;
             });
           }
+        } else {
+          pdf.text("No leading indicators available", 25, yPos);
+          yPos += 8;
         }
+        
+        // Add AI recommendations if available
+        if (recommendations && recommendations.length > 0) {
+          // Add a page break if we're too far down
+          if (yPos > 250) {
+            pdf.addPage();
+            yPos = 20;
+          } else {
+            yPos += 10;
+          }
+          
+          pdf.setFontSize(14);
+          pdf.setTextColor(100, 0, 150); // purple
+          pdf.text("AI SAFETY RECOMMENDATIONS", 105, yPos, { align: 'center' });
+          yPos += 10;
+          
+          pdf.setFontSize(10);
+          pdf.setTextColor(0, 0, 0); // black
+          
+          recommendations.forEach((rec, index) => {
+            // Add page break if needed
+            if (yPos > 270) {
+              pdf.addPage();
+              yPos = 20;
+            }
+            
+            // Split long recommendations into multiple lines
+            const textLines = pdf.splitTextToSize(
+              `${index + 1}. ${rec}`, 
+              170 // max width
+            );
+            
+            pdf.text(textLines, 20, yPos);
+            yPos += (textLines.length * 6) + 4; // adjust y position based on number of lines
+          });
+        }
+      } else {
+        pdf.text("No metrics data available", 20, yPos);
+      }
+      
+      // Add footer with timestamp
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(
+          `EHS Dashboard Report - Generated on ${new Date().toLocaleString()} - Page ${i} of ${pageCount}`,
+          105, 
+          pdf.internal.pageSize.getHeight() - 10, 
+          { align: 'center' }
+        );
       }
       
       console.log("Saving PDF...");
