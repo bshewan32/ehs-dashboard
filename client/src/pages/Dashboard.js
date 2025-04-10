@@ -6,7 +6,7 @@ import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
 import { fetchReports, fetchMetricsSummary } from '../components/services/api';
-import { usePDFExport } from '../hooks/usePDFExport';
+import { usePDFExport } from '../components/hooks/usePDFExport';
 
 const api_url = process.env.REACT_APP_API_URL;
 
