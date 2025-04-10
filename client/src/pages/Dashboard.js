@@ -8,8 +8,12 @@ import TrendCharts from '../components/dashboard/TrendCharts';
 import CompanyFilter from '../components/dashboard/CompanyFilter';
 import CompanyComparison from '../components/dashboard/CompanyComparison';
 import { fetchReports, fetchMetricsSummary, fetchCompanyMetrics } from '../components/services/api';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const api_url = process.env.REACT_APP_API_URL;
+const [exporting, setExporting] = useState(false);
+
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
@@ -247,6 +251,47 @@ export default function Dashboard() {
     return () => clearInterval(intervalId);
   }, []);
 
+  const exportToPDF = async () => {
+    const dashboardContent = document.getElementById('dashboard-content');
+    if (!dashboardContent) return;
+    
+    try {
+      // Show loading indicator
+      setExporting(true);
+      
+      // Create a PDF document
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Create a canvas from the dashboard
+      const canvas = await html2canvas(dashboardContent, {
+        scale: 2, // Higher scale for better quality
+        useCORS: true,
+        logging: false
+      });
+      
+      // Add title
+      pdf.setFontSize(16);
+      pdf.text('EHS Dashboard Report', 105, 15, { align: 'center' });
+      pdf.setFontSize(12);
+      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 22, { align: 'center' });
+      if (selectedCompany) {
+        pdf.text(`Company: ${selectedCompany}`, 105, 30, { align: 'center' });
+      }
+      
+      // Add canvas image to PDF
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 10, 35, 190, 0);
+      
+      // Download the PDF
+      pdf.save(`EHS_Dashboard_${selectedCompany || 'All'}_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('Error exporting dashboard to PDF:', error);
+      alert('Failed to export dashboard to PDF');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header section with gradient background */}
@@ -271,9 +316,47 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        <div className="mt-4 md:mt-0 flex space-x-3">
+          <button
+            onClick={exportToPDF}
+            className="bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded-lg shadow-sm font-medium transition duration-150 ease-in-out"
+            disabled={exporting}
+          >
+            {exporting ? 'Exporting...' : 'Export PDF'}
+          </button>
+          <Link to="/report/new">
+            <button className="bg-white text-blue-700 hover:bg-blue-50 px-4 py-2 rounded-lg shadow-sm font-medium transition duration-150 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50">
+              + Create Report
+            </button>
+          </Link>
+          <Link to="/inspections">
+            <button className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg shadow-sm font-medium border border-blue-400 transition duration-150 ease-in-out">
+              View Inspections
+            </button>
+          </Link>
+        </div>
       </div>
+      
 
       {/* Main content */}
+      <div id="dashboard-content" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Pass the metrics explicitly to each component */}
+        <MetricsOverview metrics={metrics} companyName={selectedCompany} />
+        <KPIOverview metrics={metrics} companyName={selectedCompany} />
+
+        <div className="col-span-1 lg:col-span-2 mt-6">
+          <TrendCharts selectedCompany={selectedCompany} />
+        </div>
+
+        <div className="col-span-1 lg:col-span-2 mt-6">
+          {/* Pass aiRefreshTrigger to only refresh AI when necessary */}
+          <AIPanel
+            metrics={metrics}
+            companyName={selectedCompany}
+            refreshTrigger={aiRefreshTrigger}
+          />
+        </div>
+      </div>
       <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* Loading and error states */}
         {loading && !metrics ? (

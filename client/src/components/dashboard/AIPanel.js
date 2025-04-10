@@ -1,11 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { fetchReports } from '../services/api';
 import { generateSafetyInsights } from '../services/openaiService';
 
-const AIPanel = ({ metrics, companyName }) => {
+const AIPanel = ({ metrics, companyName, refreshTrigger }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [lastMetricsHash, setLastMetricsHash] = useState('');
+
+  // Function to create a hash of key metrics for comparison
+  const hashMetrics = useCallback((metricsData, company) => {
+    if (!metricsData) return '';
+    const keyMetrics = {
+      company: company || 'all',
+      incidents: metricsData.lagging?.incidentCount || metricsData.totalIncidents || 0,
+      nearMisses: metricsData.lagging?.nearMissCount || metricsData.totalNearMisses || 0,
+      firstAid: metricsData.lagging?.firstAidCount || metricsData.firstAidCount || 0,
+      medicalTreatment: metricsData.lagging?.medicalTreatmentCount || metricsData.medicalTreatmentCount || 0,
+      trainingCompliance: metricsData.trainingCompliance || 0
+    };
+    return JSON.stringify(keyMetrics);
+  }, []);
 
   useEffect(() => {
     const fetchInsights = async () => {
@@ -39,10 +54,49 @@ const AIPanel = ({ metrics, companyName }) => {
           }
         }
 
-        // Generate insights using OpenAI
-        const insights = await generateSafetyInsights(metricsData, companyName);
-        setRecommendations(insights);
-        setError(null);
+        // Create hash of current metrics for comparison
+        const currentHash = hashMetrics(metricsData, companyName);
+        
+        // Check if we have stored recommendations for this metrics hash
+        const storageKey = `aiRecommendations_${companyName || 'all'}`;
+        const storedData = localStorage.getItem(storageKey);
+        
+        if (storedData) {
+          const { hash, recommendations: storedRecs, timestamp } = JSON.parse(storedData);
+          
+          // If hash matches and stored data is not too old (less than 24 hours), use stored recommendations
+          const isRecent = (Date.now() - timestamp) < 24 * 60 * 60 * 1000; // 24 hours
+          
+          if (hash === currentHash && isRecent) {
+            console.log('Using stored AI recommendations');
+            setRecommendations(storedRecs);
+            setLastMetricsHash(currentHash);
+            setLoading(false);
+            setError(null);
+            return;
+          }
+        }
+        
+        // Only call the API if metrics have changed or refresh was triggered
+        if (currentHash !== lastMetricsHash || refreshTrigger) {
+          console.log('Generating new AI recommendations');
+          
+          // Generate insights using OpenAI
+          const insights = await generateSafetyInsights(metricsData, companyName);
+          
+          // Store recommendations with hash
+          localStorage.setItem(storageKey, JSON.stringify({
+            hash: currentHash,
+            recommendations: insights,
+            timestamp: Date.now()
+          }));
+          
+          setRecommendations(insights);
+          setLastMetricsHash(currentHash);
+          setError(null);
+        } else {
+          console.log('Using existing recommendations (metrics unchanged)');
+        }
       } catch (err) {
         console.error("Error generating recommendations:", err);
         setError("Unable to generate AI insights. Using fallback recommendations.");
@@ -56,7 +110,7 @@ const AIPanel = ({ metrics, companyName }) => {
     };
 
     fetchInsights();
-  }, [metrics, companyName]); // Re-run when metrics or company changes
+  }, [metrics, companyName, refreshTrigger, hashMetrics, lastMetricsHash]); // Add refreshTrigger to dependencies
 
   // Fallback recommendation generator
   const generateFallbackRecommendations = (metrics, company) => {
@@ -169,7 +223,18 @@ const AIPanel = ({ metrics, companyName }) => {
               <svg className="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Last updated: {new Date().toLocaleString()}
+              {/* Show the actual timestamp from localStorage if available */}
+              {(() => {
+                try {
+                  const storageKey = `aiRecommendations_${companyName || 'all'}`;
+                  const storedData = localStorage.getItem(storageKey);
+                  if (storedData) {
+                    const { timestamp } = JSON.parse(storedData);
+                    return `Last updated: ${new Date(timestamp).toLocaleString()}`;
+                  }
+                } catch (e) {}
+                return `Last updated: ${new Date().toLocaleString()}`;
+              })()}
             </div>
             <div className="flex items-center">
               <svg className="w-4 h-4 mr-1 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
