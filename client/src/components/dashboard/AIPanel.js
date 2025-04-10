@@ -167,7 +167,7 @@ const AIPanel = ({ metrics, companyName, refreshTrigger }) => {
     };
 
     fetchInsights();
-  }, [metrics, companyName, refreshTrigger, hashMetrics, lastMetricsHash]); // Add refreshTrigger to dependencies
+  }, [metrics, companyName, refreshTrigger, hashMetrics]); // Add refreshTrigger to dependencies
 
   // Fallback recommendation generator
   const generateFallbackRecommendations = (metrics, company) => {
