@@ -6,9 +6,149 @@ import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
 import { fetchReports, fetchMetricsSummary } from '../components/services/api';
-import { usePDFExport } from '../hooks/usePDFExport';
 
 const api_url = process.env.REACT_APP_API_URL;
+
+// Inline PDF export hook - directly defined in the Dashboard file
+const usePDFExport = () => {
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const exportToPDF = useCallback((metrics, selectedCompany) => {
+    return new Promise((resolve, reject) => {
+      try {
+        setExporting(true);
+        setError(null);
+        console.log("Starting PDF export with inline worker...");
+        
+        // Create a worker script as a string
+        const workerScript = `
+          // Import jsPDF from CDN
+          importScripts('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+
+          // Listen for messages from the main thread
+          self.onmessage = function(e) {
+            try {
+              const { metrics, selectedCompany } = e.data;
+              
+              // Create PDF using jsPDF
+              const { jsPDF } = self.jspdf;
+              const pdf = new jsPDF();
+              
+              // Add title and basic info
+              pdf.setFontSize(16);
+              pdf.text('EHS Dashboard Report', 105, 20, { align: 'center' });
+              pdf.setFontSize(10);
+              pdf.text('Generated on ' + new Date().toLocaleDateString(), 105, 30, { align: 'center' });
+              
+              if (selectedCompany) {
+                pdf.text('Company: ' + selectedCompany, 105, 40, { align: 'center' });
+              }
+              
+              // Basic metrics - just numbers
+              pdf.text("BASIC METRICS:", 20, 60);
+              
+              if (metrics && metrics.lagging) {
+                pdf.text('Incidents: ' + (metrics.lagging.incidentCount || 0), 20, 70);
+                pdf.text('Near Misses: ' + (metrics.lagging.nearMissCount || 0), 20, 80);
+                pdf.text('First Aid Cases: ' + (metrics.lagging.firstAidCount || 0), 20, 90);
+                pdf.text('Medical Treatments: ' + (metrics.lagging.medicalTreatmentCount || 0), 20, 100);
+              } else {
+                pdf.text("No metrics available", 20, 70);
+              }
+              
+              // Add KPI section if available
+              if (metrics && metrics.leading && metrics.leading.kpis) {
+                pdf.text("KEY PERFORMANCE INDICATORS:", 20, 120);
+                let yPos = 130;
+                
+                metrics.leading.kpis.forEach(kpi => {
+                  pdf.text(kpi.name + ': ' + kpi.actual + kpi.unit + ' (Target: ' + kpi.target + kpi.unit + ')', 20, yPos);
+                  yPos += 10;
+                });
+              }
+              
+              // Generate PDF as base64 string
+              const pdfOutput = pdf.output('datauristring');
+              
+              // Send the PDF data back to the main thread
+              self.postMessage({ 
+                status: 'success', 
+                pdfData: pdfOutput,
+                filename: 'EHS_Dashboard_' + (selectedCompany || 'All') + '_' + new Date().toISOString().split('T')[0] + '.pdf'
+              });
+            } catch (error) {
+              // Send error back to main thread
+              self.postMessage({ 
+                status: 'error', 
+                error: error.message || 'Unknown error during PDF generation'
+              });
+            }
+          };
+        `;
+        
+        // Create a Blob containing the worker code
+        const blob = new Blob([workerScript], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+        
+        // Create a worker from the Blob URL
+        const worker = new Worker(workerUrl);
+        
+        // Listen for messages from the worker
+        worker.onmessage = (e) => {
+          const { status, pdfData, filename, error } = e.data;
+          
+          if (status === 'success' && pdfData) {
+            console.log("PDF generated successfully in worker");
+            
+            // Create an anchor element to trigger the download
+            const link = document.createElement('a');
+            link.href = pdfData;
+            link.download = filename;
+            link.click();
+            
+            // Clean up
+            setExporting(false);
+            worker.terminate();
+            URL.revokeObjectURL(workerUrl); // Clean up the Blob URL
+            resolve();
+          } else if (status === 'error') {
+            console.error('Error in PDF worker:', error);
+            setError(error);
+            setExporting(false);
+            worker.terminate();
+            URL.revokeObjectURL(workerUrl);
+            reject(new Error(error));
+          }
+        };
+        
+        // Handle worker errors
+        worker.onerror = (err) => {
+          console.error('Worker error:', err);
+          setError(err.message || 'Unknown worker error');
+          setExporting(false);
+          worker.terminate();
+          URL.revokeObjectURL(workerUrl);
+          reject(err);
+        };
+        
+        // Send data to the worker
+        worker.postMessage({ metrics, selectedCompany });
+      } catch (err) {
+        console.error('Error setting up PDF export:', err);
+        setError(err.message);
+        setExporting(false);
+        reject(err);
+      }
+    });
+  }, []);
+
+  return {
+    exportToPDF,
+    exporting,
+    exportError: error
+  };
+};
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
@@ -21,6 +161,8 @@ export default function Dashboard() {
   const [reportCount, setReportCount] = useState(0);
   const [previousMetrics, setPreviousMetrics] = useState(null);
   const lastFetchTimeRef = useRef(null);
+  
+  // Use the inline PDF export hook
   const { exportToPDF, exporting, exportError } = usePDFExport();
 
   // Setup default KPIs to ensure they're always available
@@ -185,31 +327,28 @@ export default function Dashboard() {
     }
   }, [reportCount, createDefaultMetrics, previousMetrics, defaultKpis, metrics]);
 
-  // Replace your current useEffect setup with this:
+  
+useEffect(() => {
+  // Initial load only
+  fetchData(true);
+  
+  // Set up refresh timer
+  const intervalId = setInterval(() => {
+    setRefreshTimestamp(new Date());
+  }, 300000); // 5 minutes
+  
+  return () => clearInterval(intervalId);
+}, []); // Empty dependency array - runs only at mount
 
-  // Effect for initial load only - runs once when component mounts
-  useEffect(() => {
-    // Initial load
-    fetchData(true);
-
-    // Set up automatic refresh timer
-    const intervalId = setInterval(() => {
-      // This will trigger a periodic refresh
-      setRefreshTimestamp(new Date());
-    }, 300000); // 5 minutes
-
-    // Clean up interval on unmount
-    return () => clearInterval(intervalId);
-  }, []); // Empty dependency array - runs only once on mount
-
-  // Effect to handle refreshTimestamp changes only
-  useEffect(() => {
-    // Skip the initial mount - only respond to actual changes after mounting
-    if (refreshTimestamp && lastFetchTimeRef.current) {
-      fetchData(false); // Never force refresh on timer
-    }
-  }, [refreshTimestamp]); // Only depend on refreshTimestamp, not fetchData
-
+// Separate effect for refresh timestamp changes
+useEffect(() => {
+  // Only run after initial mount
+  if (lastFetchTimeRef.current) {
+    fetchData(false);
+  }
+}, [refreshTimestamp]);
+  
+  [];
 
   // Handle PDF export using web worker
   const handleExportToPDF = useCallback(() => {
