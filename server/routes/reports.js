@@ -7,22 +7,63 @@ const Report = require('../models/Report');
 const metricsCache = {
   data: null,
   timestamp: null,
+  requestCount: 0,
+  cacheHits: 0,
+  cacheMisses: 0,
+  
   isValid: function() {
     // Cache is valid for 10 minutes
-    if (!this.timestamp) return false;
+    if (!this.timestamp || !this.data) {
+      console.log('Cache invalid - timestamp or data is missing');
+      return false;
+    }
+    
     const now = Date.now();
     const cacheDuration = 10 * 60 * 1000; // 10 minutes
-    return (now - this.timestamp) < cacheDuration;
+    const cacheAge = now - this.timestamp;
+    const isValid = cacheAge < cacheDuration;
+    
+    if (isValid) {
+      this.cacheHits++;
+    } else {
+      this.cacheMisses++;
+      console.log(`Cache expired - age is ${Math.round(cacheAge/1000)}s, max is ${Math.round(cacheDuration/1000)}s`);
+    }
+    
+    return isValid;
   },
+  
   invalidate: function() {
     this.data = null;
     this.timestamp = null;
-    console.log('Metrics cache invalidated');
+    console.log('Metrics cache explicitly invalidated');
   },
+  
   update: function(data) {
-    this.data = data;
+    this.data = JSON.parse(JSON.stringify(data)); // Deep clone to avoid reference issues
     this.timestamp = Date.now();
     console.log('Metrics cache updated at', new Date(this.timestamp).toISOString());
+    
+    // Log cache stats
+    this.cacheMisses++;
+    this.requestCount++;
+    console.log(`Cache stats - Total: ${this.requestCount}, Hits: ${this.cacheHits}, Misses: ${this.cacheMisses}, Hit rate: ${Math.round((this.cacheHits/this.requestCount)*100)}%`);
+    
+    // Log summary of cached KPIs
+    if (this.data?.leading?.kpis) {
+      console.log('Cached KPIs count:', this.data.leading.kpis.length);
+    }
+  },
+  
+  getStats: function() {
+    return {
+      cacheExists: !!this.data,
+      cacheAge: this.timestamp ? Math.round((Date.now() - this.timestamp)/1000) + 's' : 'N/A',
+      totalRequests: this.requestCount,
+      cacheHits: this.cacheHits,
+      cacheMisses: this.cacheMisses,
+      hitRate: this.requestCount ? Math.round((this.cacheHits/this.requestCount)*100) + '%' : 'N/A'
+    };
   }
 };
 
@@ -90,15 +131,28 @@ router.post('/', async (req, res) => {
  * @access  Private (if using auth middleware)
  */
 router.get('/metrics/summary', async (req, res) => {
+  // Generate a unique request ID
+  const requestId = Math.random().toString(36).substring(7);
+  
+  // Track the request
+  metricsCache.requestCount++;
+  
+  // Log request details including headers
+  console.log(`[${requestId}] Metrics summary request #${metricsCache.requestCount} at ${new Date().toISOString()}`);
+  console.log(`[${requestId}] User-Agent: ${req.headers['user-agent'] || 'Not provided'}`);
+  console.log(`[${requestId}] Referer: ${req.headers['referer'] || 'Not provided'}`);
+  
   try {
     // Check if we have valid cached metrics
     if (metricsCache.isValid()) {
-      console.log('Returning cached metrics (age:', 
+      console.log(`[${requestId}] Cache hit: Using cached metrics (age:`,
         Math.round((Date.now() - metricsCache.timestamp) / 1000), 'seconds)');
+      // Return cached data with cache stats in headers
+      res.setHeader('X-Cache-Stats', JSON.stringify(metricsCache.getStats()));
       return res.json(metricsCache.data);
     }
     
-    console.log('Metrics cache miss, fetching from database');
+    console.log(`[${requestId}] Cache miss: fetching fresh metrics from database`);
     
     // Get the most recent report
     const latestReport = await Report.findOne().sort({ createdAt: -1 });
@@ -140,7 +194,9 @@ router.get('/metrics/summary', async (req, res) => {
     // Update the cache with latest metrics
     metricsCache.update(metrics);
     
-    // Return the structured metrics
+    // Return the structured metrics with cache stats in headers
+    res.setHeader('X-Cache-Stats', JSON.stringify(metricsCache.getStats()));
+    console.log(`[${requestId}] Returning fresh metrics data to client`);
     res.json(metrics);
   } catch (err) {
     console.error('Error fetching metrics summary:', err.message);
@@ -153,6 +209,18 @@ router.get('/metrics/summary', async (req, res) => {
     
     res.status(500).json({ message: 'Server error' });
   }
+});
+
+/**
+ * @route   GET /api/reports/metrics/cache-status
+ * @desc    Get cache status
+ * @access  Private (if using auth middleware)
+ */
+router.get('/metrics/cache-status', (req, res) => {
+  res.json({
+    status: 'ok',
+    cache: metricsCache.getStats()
+  });
 });
 
 /**

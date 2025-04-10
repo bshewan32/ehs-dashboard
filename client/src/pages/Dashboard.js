@@ -121,13 +121,20 @@ export default function Dashboard() {
 
   // Process metrics based on selected company
   const processMetricsForCompany = useCallback(async (company) => {
-    if (!reports || reports.length === 0) return;
+    const processId = Math.random().toString(36).substring(7);
+    console.log(`[${processId}] Starting metrics processing for ${company || 'all'}`);
+    
+    if (!reports || reports.length === 0) {
+      console.log(`[${processId}] No reports available, aborting metrics processing`);
+      return;
+    }
 
     try {
       let newMetrics;
       
       if (company) {
         // Use the specialized company metrics API
+        console.log(`[${processId}] Calling fetchCompanyMetrics for ${company}`);
         newMetrics = await fetchCompanyMetrics(company);
         
         // Ensure KPIs are normalized
@@ -136,7 +143,9 @@ export default function Dashboard() {
         }
       } else {
         // Use the general metrics summary API
+        console.log(`[${processId}] Calling fetchMetricsSummary for all companies`);
         const data = await fetchMetricsSummary();
+        console.log(`[${processId}] Received metrics summary data`);
         
         // Create a properly structured metrics object
         newMetrics = {
@@ -169,23 +178,30 @@ export default function Dashboard() {
       
       // Only update if metrics have actually changed
       if (!previousMetrics || !deepEqual(newMetrics, previousMetrics)) {
-        console.log('Metrics have changed, updating state');
+        console.log(`[${processId}] Metrics have changed, updating state`);
         setMetrics(newMetrics);
         setPreviousMetrics(newMetrics);
       } else {
-        console.log('Metrics unchanged, skipping update');
+        console.log(`[${processId}] Metrics unchanged, skipping state update`);
       }
     } catch (error) {
-      console.error('Error processing metrics for company:', error);
+      console.error(`[${processId}] Error processing metrics for company:`, error);
       if (!metrics) {
         setMetrics(createDefaultMetrics());
       }
     }
+    
+    console.log(`[${processId}] Completed metrics processing for ${company || 'all'}`);
   }, [reports, defaultKpis, previousMetrics, createDefaultMetrics, normalizeKpiData]);
 
   // Function to fetch data (separate from useEffect for cleaner code)
   const fetchData = useCallback(async (force = false) => {
     try {
+      // Add a unique ID to this fetch call for tracking
+      const fetchId = Math.random().toString(36).substring(7);
+      const fetchStartTime = new Date();
+      console.log(`[${fetchId}] Dashboard fetchData called, force=${force}`);
+      
       // Throttle API calls - only fetch if it's been at least 2 minutes or forced
       const now = new Date();
       if (!force && lastFetchTimeRef.current) {
@@ -193,7 +209,7 @@ export default function Dashboard() {
         const minimumInterval = 120000; // 2 minutes in milliseconds
         
         if (timeSinceLastFetch < minimumInterval) {
-          console.log(`Skipping API call, last fetch was ${Math.round(timeSinceLastFetch/1000)}s ago`);
+          console.log(`[${fetchId}] Skipping API call, last fetch was ${Math.round(timeSinceLastFetch/1000)}s ago`);
           return; // Skip this fetch cycle
         }
       }
@@ -201,11 +217,14 @@ export default function Dashboard() {
       setLoading(true);
       
       // Fetch all reports first
+      console.log(`[${fetchId}] Fetching reports...`);
       const reportData = await fetchReports();
       lastFetchTimeRef.current = now; // Update last successful fetch time
+      console.log(`[${fetchId}] Reports fetched, got ${reportData.length} reports`);
       
       // Check if we have new reports - this would trigger an AI refresh
       if (reportData.length !== reportCount) {
+        console.log(`[${fetchId}] Report count changed from ${reportCount} to ${reportData.length}`);
         setReportCount(reportData.length);
         setAiRefreshTrigger(new Date()); // Trigger AI refresh when report count changes
       }
@@ -213,9 +232,15 @@ export default function Dashboard() {
       setReports(reportData);
       
       // Process metrics for selected company
+      console.log(`[${fetchId}] Processing metrics for company: ${selectedCompany || 'all'}`);
       await processMetricsForCompany(selectedCompany);
       
       setError(null);
+      
+      // Log total time taken
+      const fetchEndTime = new Date();
+      const fetchDuration = fetchEndTime - fetchStartTime;
+      console.log(`[${fetchId}] Dashboard fetchData completed in ${fetchDuration}ms`);
     } catch (error) {
       console.error('Error fetching data:', error);
       setError(error.message);
