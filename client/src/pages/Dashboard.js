@@ -12,7 +12,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 const api_url = process.env.REACT_APP_API_URL;
-const [exporting, setExporting] = useState(false);
+
 
 
 export default function Dashboard() {
@@ -26,6 +26,7 @@ export default function Dashboard() {
   const [reportCount, setReportCount] = useState(0); // Track report count to detect new reports
   const [previousMetrics, setPreviousMetrics] = useState(null);
   const lastFetchTimeRef = useRef(null); // Track when we last successfully fetched data
+  const [exporting, setExporting] = useState(false);
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -303,6 +304,13 @@ export default function Dashboard() {
               <p className="mt-1 text-blue-100">Environmental Health & Safety Metrics</p>
             </div>
             <div className="mt-4 md:mt-0 flex space-x-3">
+              <button
+                onClick={exportToPDF}
+                className="bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded-lg shadow-sm font-medium transition duration-150 ease-in-out"
+                disabled={exporting}
+              >
+                {exporting ? 'Exporting...' : 'Export PDF'}
+              </button>
               <Link to="/report/new">
                 <button className="bg-white text-blue-700 hover:bg-blue-50 px-4 py-2 rounded-lg shadow-sm font-medium transition duration-150 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50">
                   + Create Report
@@ -316,47 +324,9 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-        <div className="mt-4 md:mt-0 flex space-x-3">
-          <button
-            onClick={exportToPDF}
-            className="bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded-lg shadow-sm font-medium transition duration-150 ease-in-out"
-            disabled={exporting}
-          >
-            {exporting ? 'Exporting...' : 'Export PDF'}
-          </button>
-          <Link to="/report/new">
-            <button className="bg-white text-blue-700 hover:bg-blue-50 px-4 py-2 rounded-lg shadow-sm font-medium transition duration-150 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50">
-              + Create Report
-            </button>
-          </Link>
-          <Link to="/inspections">
-            <button className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg shadow-sm font-medium border border-blue-400 transition duration-150 ease-in-out">
-              View Inspections
-            </button>
-          </Link>
-        </div>
       </div>
-      
-
+  
       {/* Main content */}
-      <div id="dashboard-content" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pass the metrics explicitly to each component */}
-        <MetricsOverview metrics={metrics} companyName={selectedCompany} />
-        <KPIOverview metrics={metrics} companyName={selectedCompany} />
-
-        <div className="col-span-1 lg:col-span-2 mt-6">
-          <TrendCharts selectedCompany={selectedCompany} />
-        </div>
-
-        <div className="col-span-1 lg:col-span-2 mt-6">
-          {/* Pass aiRefreshTrigger to only refresh AI when necessary */}
-          <AIPanel
-            metrics={metrics}
-            companyName={selectedCompany}
-            refreshTrigger={aiRefreshTrigger}
-          />
-        </div>
-      </div>
       <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* Loading and error states */}
         {loading && !metrics ? (
@@ -384,7 +354,7 @@ export default function Dashboard() {
             </div>
           </div>
         ) : null}
-
+  
         {/* Company filter card */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6 transition duration-300 ease-in-out transform hover:shadow-lg">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Data Filter</h2>
@@ -410,35 +380,35 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-
+  
         {/* Main dashboard grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div id="dashboard-content" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Pass the metrics explicitly to each component */}
           <MetricsOverview metrics={metrics} companyName={selectedCompany} />
           <KPIOverview metrics={metrics} companyName={selectedCompany} />
-        </div>
-
-        <div className="mt-6">
-          <TrendCharts selectedCompany={selectedCompany} />
-        </div>
-
-        <div className="mt-6">
-          {/* Pass aiRefreshTrigger to only refresh AI when necessary */}
-          <AIPanel 
-            metrics={metrics} 
-            companyName={selectedCompany} 
-            refreshTrigger={aiRefreshTrigger} 
-          />
-        </div>
-        
-        {/* Only show company comparison when not filtering to a specific company */}
-        {!selectedCompany && (
-          <div className="mt-6">
-            <CompanyComparison />
+          
+          <div className="col-span-1 lg:col-span-2 mt-6">
+            <TrendCharts selectedCompany={selectedCompany} />
           </div>
-        )}
+  
+          <div className="col-span-1 lg:col-span-2 mt-6">
+            {/* Pass aiRefreshTrigger to only refresh AI when necessary */}
+            <AIPanel 
+              metrics={metrics} 
+              companyName={selectedCompany} 
+              refreshTrigger={aiRefreshTrigger} 
+            />
+          </div>
+          
+          {/* Only show company comparison when not filtering to a specific company */}
+          {!selectedCompany && (
+            <div className="col-span-1 lg:col-span-2 mt-6">
+              <CompanyComparison />
+            </div>
+          )}
+        </div>
       </div>
-
+  
       {/* Footer */}
       <footer className="bg-gray-800 text-white mt-12">
         <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
