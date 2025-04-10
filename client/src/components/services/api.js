@@ -35,9 +35,27 @@ export const submitReport = async (reportData) => {
 
 /**
  * Fetch all reports from the server
+ * With caching to reduce API calls
  */
 export const fetchReports = async () => {
   try {
+    // Check if we have cached reports
+    const cacheKey = 'reportsCache';
+    const cachedData = localStorage.getItem(cacheKey);
+    
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData);
+      const cacheAge = Date.now() - timestamp;
+      const maxCacheAge = 10 * 60 * 1000; // 10 minutes
+      
+      if (cacheAge < maxCacheAge) {
+        console.log(`Using cached reports (age: ${Math.round(cacheAge/1000)}s, count: ${data.length})`);
+        return data;
+      }
+    }
+    
+    console.log('Fetching fresh reports from API');
+    
     // Get token if it exists
     const token = localStorage.getItem('token');
     
@@ -60,7 +78,12 @@ export const fetchReports = async () => {
 
     const data = await res.json();
     
-    // Add debugging
+    // Cache the results
+    localStorage.setItem(cacheKey, JSON.stringify({
+      data,
+      timestamp: Date.now()
+    }));
+    
     console.log(`Fetched ${data.length} reports from API`);
     
     // For empty arrays, return default placeholder data
@@ -114,6 +137,21 @@ export const fetchReports = async () => {
     return data;
   } catch (error) {
     console.error('Error in fetchReports:', error);
+    
+    // Try to use cached data even if it's expired
+    try {
+      const cacheKey = 'reportsCache';
+      const cachedData = localStorage.getItem(cacheKey);
+      
+      if (cachedData) {
+        console.log('Error occurred, using expired reports cache as fallback');
+        const { data } = JSON.parse(cachedData);
+        return data;
+      }
+    } catch (cacheError) {
+      console.error('Could not retrieve reports cache:', cacheError);
+    }
+    
     // Return mock data to prevent UI breaking
     return [
       {
@@ -226,9 +264,26 @@ export const submitInspection = async (inspectionData) => {
 
 /**
  * Fetch metrics summary from the server
+ * With client-side caching
  */
 export const fetchMetricsSummary = async () => {
   try {
+    // Check for cached metrics summary
+    const cacheKey = 'metricsSummaryCache';
+    const cachedData = localStorage.getItem(cacheKey);
+    
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData);
+      const cacheAge = Date.now() - timestamp;
+      const maxCacheAge = 10 * 60 * 1000; // 10 minutes
+      
+      if (cacheAge < maxCacheAge) {
+        console.log(`Using cached metrics summary (age: ${Math.round(cacheAge/1000)}s)`);
+        return data;
+      }
+    }
+    
+    console.log('Fetching fresh metrics summary from API');
     const token = localStorage.getItem('token');
     
     const headers = {
@@ -247,10 +302,33 @@ export const fetchMetricsSummary = async () => {
       throw new Error(`Failed to fetch metrics summary: ${response.status} ${response.statusText}`);
     }
     
-    return await response.json();
+    const data = await response.json();
+    
+    // Cache the results
+    localStorage.setItem(cacheKey, JSON.stringify({
+      data,
+      timestamp: Date.now()
+    }));
+    
+    return data;
   } catch (error) {
     console.error('Error fetching metrics summary:', error);
-    // Return default metrics object as fallback
+    
+    // Try to use cached data even if it's expired
+    try {
+      const cacheKey = 'metricsSummaryCache';
+      const cachedData = localStorage.getItem(cacheKey);
+      
+      if (cachedData) {
+        console.log('Error occurred, using expired cache as fallback');
+        const { data } = JSON.parse(cachedData);
+        return data;
+      }
+    } catch (cacheError) {
+      console.error('Could not retrieve cache:', cacheError);
+    }
+    
+    // Return default metrics object as last resort fallback
     return {
       lagging: {
         incidentCount: 0,
@@ -291,16 +369,31 @@ export const fetchMetricsSummary = async () => {
 
 /**
  * Fetch metrics data for a specific company
- */
-/**
- * Fetch metrics data for a specific company
- * With improved stability for KPI processing
+ * With caching to reduce API calls
  */
 export const fetchCompanyMetrics = async (companyName) => {
   try {
     if (!companyName) {
       return await fetchMetricsSummary();
     }
+    
+    // Cache key for this company
+    const cacheKey = `companyMetrics_${companyName}`;
+    
+    // Check cache first
+    const cachedData = localStorage.getItem(cacheKey);
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData);
+      const cacheAge = Date.now() - timestamp;
+      const maxCacheAge = 10 * 60 * 1000; // 10 minutes
+      
+      if (cacheAge < maxCacheAge) {
+        console.log(`Using cached metrics for ${companyName} (age: ${Math.round(cacheAge/1000)}s)`);
+        return data;
+      }
+    }
+    
+    console.log(`Fetching fresh metrics for company: ${companyName}`);
     
     // Get token if it exists
     const token = localStorage.getItem('token');
@@ -370,6 +463,12 @@ export const fetchCompanyMetrics = async (companyName) => {
         kpis: normalizeKpis(mostRecent.metrics?.leading?.kpis)
       }
     };
+    
+    // Cache the metrics
+    localStorage.setItem(cacheKey, JSON.stringify({
+      data: metrics,
+      timestamp: Date.now()
+    }));
     
     return metrics;
   } catch (error) {

@@ -3,6 +3,29 @@ const express = require('express');
 const router = express.Router();
 const Report = require('../models/Report');
 
+// In-memory cache for metrics
+const metricsCache = {
+  data: null,
+  timestamp: null,
+  isValid: function() {
+    // Cache is valid for 10 minutes
+    if (!this.timestamp) return false;
+    const now = Date.now();
+    const cacheDuration = 10 * 60 * 1000; // 10 minutes
+    return (now - this.timestamp) < cacheDuration;
+  },
+  invalidate: function() {
+    this.data = null;
+    this.timestamp = null;
+    console.log('Metrics cache invalidated');
+  },
+  update: function(data) {
+    this.data = data;
+    this.timestamp = Date.now();
+    console.log('Metrics cache updated at', new Date(this.timestamp).toISOString());
+  }
+};
+
 /**
  * @route   GET /api/reports
  * @desc    Get all reports
@@ -37,6 +60,9 @@ router.post('/', async (req, res) => {
     // Log the saved report
     console.log('Successfully saved report:', savedReport._id);
     
+    // Invalidate metrics cache when a new report is added
+    metricsCache.invalidate();
+    
     // Return success response
     res.status(201).json({ 
       message: 'Report created successfully', 
@@ -65,6 +91,15 @@ router.post('/', async (req, res) => {
  */
 router.get('/metrics/summary', async (req, res) => {
   try {
+    // Check if we have valid cached metrics
+    if (metricsCache.isValid()) {
+      console.log('Returning cached metrics (age:', 
+        Math.round((Date.now() - metricsCache.timestamp) / 1000), 'seconds)');
+      return res.json(metricsCache.data);
+    }
+    
+    console.log('Metrics cache miss, fetching from database');
+    
     // Get the most recent report
     const latestReport = await Report.findOne().sort({ createdAt: -1 });
     
@@ -102,14 +137,20 @@ router.get('/metrics/summary', async (req, res) => {
       delete metrics.kpis;
     }
     
-    // Log what we're returning
-    console.log('Returning metrics summary:');
-    console.log('- KPIs:', metrics.leading.kpis);
+    // Update the cache with latest metrics
+    metricsCache.update(metrics);
     
     // Return the structured metrics
     res.json(metrics);
   } catch (err) {
     console.error('Error fetching metrics summary:', err.message);
+    
+    // If we have cached data, return it as a fallback despite the error
+    if (metricsCache.data) {
+      console.log('Error occurred, returning cached data as fallback');
+      return res.json(metricsCache.data);
+    }
+    
     res.status(500).json({ message: 'Server error' });
   }
 });
