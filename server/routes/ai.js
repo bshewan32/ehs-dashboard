@@ -6,6 +6,62 @@ require('dotenv').config();
 // Get OpenAI API key from environment variables
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+// Simple rate limiting implementation
+const rateLimiter = {
+  // Track request timestamps
+  requests: [],
+  // Maximum requests per minute
+  maxRequestsPerMinute: 10,
+  // Time window in milliseconds (1 minute)
+  timeWindow: 60 * 1000,
+  // In-memory cache for responses to reduce API calls
+  responseCache: new Map(),
+  // Cache TTL in milliseconds (1 hour)
+  cacheTTL: 60 * 60 * 1000,
+  
+  // Check if a new request is allowed
+  isAllowed: function() {
+    const now = Date.now();
+    
+    // Remove requests outside the time window
+    this.requests = this.requests.filter(
+      timestamp => now - timestamp < this.timeWindow
+    );
+    
+    // Check if we're under the limit
+    return this.requests.length < this.maxRequestsPerMinute;
+  },
+  
+  // Record a new request
+  recordRequest: function() {
+    this.requests.push(Date.now());
+  },
+  
+  // Get cached response if available
+  getCachedResponse: function(key) {
+    if (!this.responseCache.has(key)) return null;
+    
+    const cachedItem = this.responseCache.get(key);
+    const now = Date.now();
+    
+    // Check if cache item is still valid
+    if (now - cachedItem.timestamp > this.cacheTTL) {
+      this.responseCache.delete(key);
+      return null;
+    }
+    
+    return cachedItem.data;
+  },
+  
+  // Cache a response
+  cacheResponse: function(key, data) {
+    this.responseCache.set(key, {
+      data,
+      timestamp: Date.now()
+    });
+  }
+};
+
 /**
  * @route   POST /api/ai/safety-insights
  * @desc    Generate safety insights using OpenAI
@@ -13,15 +69,50 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
  */
 router.post('/safety-insights', async (req, res) => {
   try {
+    const { metrics, companyName } = req.body;
+    
     // Check if OpenAI API key is configured
     if (!OPENAI_API_KEY) {
-      return res.status(500).json({ 
-        error: 'OpenAI API key not configured',
-        insights: generateFallbackInsights(req.body.metrics, req.body.companyName)
+      console.log('OpenAI API key not configured, using fallback insights');
+      return res.json({ 
+        source: 'fallback',
+        insights: generateFallbackInsights(metrics, companyName)
       });
     }
     
-    const { metrics, companyName } = req.body;
+    // Generate a cache key based on the metrics and company name
+    const cacheKey = JSON.stringify({
+      metrics: {
+        lagging: metrics?.lagging || {},
+        leading: metrics?.leading || {},
+        trainingCompliance: metrics?.trainingCompliance,
+        riskScore: metrics?.riskScore
+      },
+      companyName
+    });
+    
+    // Check cache first
+    const cachedInsights = rateLimiter.getCachedResponse(cacheKey);
+    if (cachedInsights) {
+      console.log(`Using cached AI insights for ${companyName || 'all companies'}`);
+      return res.json({ 
+        source: 'cache',
+        insights: cachedInsights 
+      });
+    }
+    
+    // Check rate limit before making API call
+    if (!rateLimiter.isAllowed()) {
+      console.log('Rate limit exceeded, using fallback insights');
+      return res.json({ 
+        source: 'rate-limited',
+        insights: generateFallbackInsights(metrics, companyName)
+      });
+    }
+    
+    // Record this request against the rate limit
+    rateLimiter.recordRequest();
+    console.log(`Making OpenAI API request for ${companyName || 'all companies'}`);
     
     // Format the metrics data for the prompt
     const metricsDescription = formatMetricsForPrompt(metrics);
@@ -49,42 +140,60 @@ router.post('/safety-insights', async (req, res) => {
     Format each recommendation as a single paragraph. Be specific, data-driven, and provide insights that would not be obvious from just looking at the numbers.
     `;
     
-    // Make the OpenAI API request using native fetch
-    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4-turbo',
-        messages: [
-          { role: 'system', content: 'You are an expert safety consultant providing actionable insights based on EHS metrics.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000
-      })
-    });
+    // Make the OpenAI API request using native fetch with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
     
-    if (!openaiResponse.ok) {
-      throw new Error(`OpenAI API error: ${openaiResponse.status} ${openaiResponse.statusText}`);
+    try {
+      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4-turbo',
+          messages: [
+            { role: 'system', content: 'You are an expert safety consultant providing actionable insights based on EHS metrics.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 1000
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!openaiResponse.ok) {
+        throw new Error(`OpenAI API error: ${openaiResponse.status} ${openaiResponse.statusText}`);
+      }
+      
+      // Parse the JSON response
+      const openaiData = await openaiResponse.json();
+      
+      // Extract and process the insights
+      const content = openaiData.choices[0].message.content;
+      
+      // Split the content into separate recommendations
+      const insights = content
+        .split('\n\n')
+        .filter(item => item.trim().length > 0)
+        .map(item => item.trim());
+      
+      // Cache the successful response
+      rateLimiter.cacheResponse(cacheKey, insights);
+      
+      // Return the insights
+      return res.json({ 
+        source: 'openai',
+        insights 
+      });
+    } catch (fetchError) {
+      // Handle timeout or other fetch errors
+      clearTimeout(timeoutId);
+      throw fetchError;
     }
-    
-    // Parse the JSON response
-    const openaiData = await openaiResponse.json();
-    
-    // Extract and process the insights
-    const content = openaiData.choices[0].message.content;
-    
-    // Split the content into separate recommendations
-    const insights = content
-      .split('\n\n')
-      .filter(item => item.trim().length > 0)
-      .map(item => item.trim());
-    
-    // Return the insights
-    return res.json({ insights });
   } catch (error) {
     console.error('Error generating AI insights:', error);
     
@@ -94,8 +203,9 @@ router.post('/safety-insights', async (req, res) => {
       req.body.companyName
     );
     
-    return res.status(500).json({ 
-      error: 'Failed to generate AI insights',
+    return res.json({ 
+      source: 'error',
+      error: error.message,
       insights: fallbackInsights
     });
   }

@@ -71,6 +71,8 @@ const AIPanel = ({ metrics, companyName, refreshTrigger }) => {
             console.log('Using stored AI recommendations');
             setRecommendations(storedRecs);
             setLastMetricsHash(currentHash);
+            // Set source from cache if available, otherwise mark as cached
+            setInsightSource(storedData.source || 'cache');
             setLoading(false);
             setError(null);
             return;
@@ -81,29 +83,74 @@ const AIPanel = ({ metrics, companyName, refreshTrigger }) => {
         if (currentHash !== lastMetricsHash || refreshTrigger) {
           console.log('Generating new AI recommendations');
           
-          // Generate insights using OpenAI
-          const insights = await generateSafetyInsights(metricsData, companyName);
-          
-          // Store recommendations with hash
-          localStorage.setItem(storageKey, JSON.stringify({
-            hash: currentHash,
-            recommendations: insights,
-            timestamp: Date.now()
-          }));
-          
-          setRecommendations(insights);
-          setLastMetricsHash(currentHash);
-          setError(null);
+          try {
+            // Generate insights using OpenAI
+            const insights = await generateSafetyInsights(metricsData, companyName);
+            
+            // The API might return an object with source information in future versions
+            if (insights && typeof insights === 'object' && insights.source) {
+              setInsightSource(insights.source);
+              setRecommendations(insights.insights || []);
+            } else {
+              // Current version just returns array of insights
+              setRecommendations(insights);
+              setInsightSource('openai'); // Assume it came from OpenAI if successful
+            }
+            
+            // Store recommendations with hash and source
+            localStorage.setItem(storageKey, JSON.stringify({
+              hash: currentHash,
+              recommendations: Array.isArray(insights) ? insights : (insights.insights || []),
+              source: Array.isArray(insights) ? 'openai' : (insights.source || 'openai'),
+              timestamp: Date.now()
+            }));
+            
+            setLastMetricsHash(currentHash);
+            setError(null);
+          } catch (err) {
+            console.error('Error in AI insights generation:', err);
+            setInsightSource('error');
+            throw err;
+          }
         } else {
           console.log('Using existing recommendations (metrics unchanged)');
+          
+          // Try to get source information from localStorage
+          try {
+            const cachedData = localStorage.getItem(storageKey);
+            if (cachedData) {
+              const { source } = JSON.parse(cachedData);
+              if (source) {
+                setInsightSource(source);
+              } else {
+                setInsightSource('cache');
+              }
+            }
+          } catch (err) {
+            console.error('Error reading cached source:', err);
+          }
         }
       } catch (err) {
         console.error("Error generating recommendations:", err);
         setError("Unable to generate AI insights. Using fallback recommendations.");
+        setInsightSource('fallback');
         
         // Generate basic recommendations based on available metrics
         const fallbackRecs = generateFallbackRecommendations(metrics, companyName);
         setRecommendations(fallbackRecs);
+        
+        // Cache the fallback recommendations to avoid repeated failures
+        try {
+          localStorage.setItem(storageKey, JSON.stringify({
+            hash: currentHash,
+            recommendations: fallbackRecs,
+            source: 'fallback',
+            timestamp: Date.now(),
+            error: err.message
+          }));
+        } catch (cacheError) {
+          console.error("Failed to cache fallback recommendations:", cacheError);
+        }
       } finally {
         setLoading(false);
       }
@@ -149,6 +196,69 @@ const AIPanel = ({ metrics, companyName, refreshTrigger }) => {
     return recs;
   };
 
+  // Track the source of AI recommendations
+  const [insightSource, setInsightSource] = useState('unknown');
+  
+  // Function to get badge styles based on source
+  const getSourceBadge = () => {
+    if (loading) {
+      return {
+        bg: "bg-purple-800",
+        text: "Processing",
+        icon: (
+          <div className="w-2 h-2 bg-purple-100 rounded-full mr-2 animate-pulse"></div>
+        )
+      };
+    }
+    
+    if (error) {
+      return {
+        bg: "bg-orange-600",
+        text: "Fallback",
+        icon: (
+          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        )
+      };
+    }
+    
+    // Custom badge based on source
+    if (insightSource === 'openai') {
+      return {
+        bg: "bg-green-600",
+        text: "AI-powered",
+        icon: (
+          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+          </svg>
+        )
+      };
+    } else if (insightSource === 'cache') {
+      return {
+        bg: "bg-blue-600",
+        text: "AI (cached)",
+        icon: (
+          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      };
+    }
+    
+    return {
+      bg: "bg-indigo-600",
+      text: "AI Insights",
+      icon: (
+        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+      )
+    };
+  };
+  
+  const sourceBadge = getSourceBadge();
+  
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
       {/* Header section */}
@@ -165,26 +275,10 @@ const AIPanel = ({ metrics, companyName, refreshTrigger }) => {
             <p className="text-sm text-purple-100">Intelligent safety recommendations</p>
           </div>
           
-          {loading ? (
-            <div className="text-sm bg-purple-800 px-3 py-1 rounded-full animate-pulse flex items-center">
-              <div className="w-2 h-2 bg-purple-100 rounded-full mr-2"></div>
-              Processing
-            </div>
-          ) : error ? (
-            <div className="text-sm bg-orange-600 px-3 py-1 rounded-full flex items-center">
-              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              Fallback
-            </div>
-          ) : (
-            <div className="text-sm bg-green-600 px-3 py-1 rounded-full flex items-center">
-              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
-              AI-powered
-            </div>
-          )}
+          <div className={`text-sm ${sourceBadge.bg} px-3 py-1 rounded-full flex items-center`}>
+            {sourceBadge.icon}
+            {sourceBadge.text}
+          </div>
         </div>
       </div>
 
