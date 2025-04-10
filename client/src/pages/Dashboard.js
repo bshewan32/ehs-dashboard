@@ -1,4 +1,3 @@
-//trying to redeploy to vercel new branch
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import MetricsOverview from '../components/dashboard/MetricsOverview';
@@ -13,8 +12,6 @@ import html2canvas from 'html2canvas';
 
 const api_url = process.env.REACT_APP_API_URL;
 
-
-
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,6 +24,7 @@ export default function Dashboard() {
   const [previousMetrics, setPreviousMetrics] = useState(null);
   const lastFetchTimeRef = useRef(null); // Track when we last successfully fetched data
   const [exporting, setExporting] = useState(false);
+  const [recommendations, setRecommendations] = useState([]); // Added state for recommendations
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -192,7 +190,7 @@ export default function Dashboard() {
     }
     
     console.log(`[${processId}] Completed metrics processing for ${company || 'all'}`);
-  }, [reports, defaultKpis, previousMetrics, createDefaultMetrics, normalizeKpiData]);
+  }, [reports, defaultKpis, previousMetrics, createDefaultMetrics, normalizeKpiData, metrics]);
 
   // Function to fetch data (separate from useEffect for cleaner code)
   const fetchData = useCallback(async (force = false) => {
@@ -276,6 +274,41 @@ export default function Dashboard() {
     // Clean up interval on unmount
     return () => clearInterval(intervalId);
   }, []);
+
+  // Effect to get recommendations from AIPanel
+  useEffect(() => {
+    // This is a placeholder - in a real implementation, you would either:
+    // 1. Get recommendations from the AIPanel component via props or context
+    // 2. Fetch recommendations from your API based on metrics
+    
+    // For now, we'll generate some basic recommendations based on metrics
+    if (metrics) {
+      const generateBasicRecommendations = () => {
+        const recs = [];
+        
+        const incidentCount = metrics.lagging?.incidentCount ?? metrics.totalIncidents ?? 0;
+        const nearMissCount = metrics.lagging?.nearMissCount ?? metrics.totalNearMisses ?? 0;
+        
+        if (incidentCount > 5) {
+          recs.push("High number of incidents detected. Consider reviewing recent risk assessments.");
+        }
+        if (nearMissCount < 5) {
+          recs.push("Low near miss reporting. Reinforce importance of reporting minor events.");
+        }
+        if (incidentCount === 0 && nearMissCount === 0) {
+          recs.push("No reported incidents or near misses. Consider conducting an audit to validate reporting accuracy.");
+        }
+        
+        if (recs.length === 0) {
+          recs.push("No significant trends detected. Maintain current safety protocols.");
+        }
+        
+        return recs;
+      };
+      
+      setRecommendations(generateBasicRecommendations());
+    }
+  }, [metrics, aiRefreshTrigger]);
 
   const exportToPDF = async () => {
     try {
@@ -539,7 +572,8 @@ export default function Dashboard() {
             <AIPanel 
               metrics={metrics} 
               companyName={selectedCompany} 
-              refreshTrigger={aiRefreshTrigger} 
+              refreshTrigger={aiRefreshTrigger}
+              onRecommendationsChange={setRecommendations} // Add a callback to get recommendations
             />
           </div>
           
