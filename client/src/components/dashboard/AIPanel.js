@@ -209,6 +209,11 @@ const AIPanel = ({ metrics, companyName, refreshTrigger }) => {
   // Track the source of AI recommendations
   const [insightSource, setInsightSource] = useState('unknown');
   
+  // console log metrics when they change
+  useEffect(() => {
+    console.log('AIPanel received metrics:', metrics);
+  }, [metrics]);
+  
   // Function to get badge styles based on source
   const getSourceBadge = () => {
     if (loading) {

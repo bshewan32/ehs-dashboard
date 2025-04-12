@@ -338,7 +338,7 @@ useEffect(() => {
   }, 300000); // 5 minutes
   
   return () => clearInterval(intervalId);
-}, []); // Empty dependency array - runs only at mount
+}, [fetchData]); // Add fetchData to dependency array
 
 // Separate effect for refresh timestamp changes
 useEffect(() => {
@@ -346,7 +346,7 @@ useEffect(() => {
   if (lastFetchTimeRef.current) {
     fetchData(false);
   }
-}, [refreshTimestamp]);
+}, [refreshTimestamp, fetchData]);
   
 
 
@@ -415,10 +415,10 @@ useEffect(() => {
         )}
         
         {/* Pass the metrics explicitly to each component */}
-        <MetricsOverview metrics={metrics} />
+        <MetricsOverview metrics={metrics} companyName={selectedCompany} />
         <KPIOverview metrics={metrics} />
         <TrendCharts />
-        <AIPanel metrics={metrics} refreshTrigger={aiRefreshTrigger} />
+        <AIPanel metrics={metrics} companyName={selectedCompany} refreshTrigger={aiRefreshTrigger} />
       </div>
     </div>
   );

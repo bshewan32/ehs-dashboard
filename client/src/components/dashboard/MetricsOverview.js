@@ -7,6 +7,7 @@ const MetricsOverview = ({ metrics, companyName }) => {
   useEffect(() => {
     // If metrics are passed as props, use them
     if (metrics) {
+      console.log('MetricsOverview: Using provided metrics', metrics);
       setLocalMetrics(metrics);
       return;
     }
