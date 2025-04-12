@@ -21,6 +21,21 @@ const usePDFExport = () => {
         setError(null);
         console.log("Starting PDF export with inline worker...");
         
+        // Check if metrics is valid to prevent crashes
+        const safeMetrics = metrics || {
+          lagging: {
+            incidentCount: 0,
+            nearMissCount: 0,
+            firstAidCount: 0,
+            medicalTreatmentCount: 0
+          },
+          leading: {
+            kpis: []
+          }
+        };
+        
+        console.log("PDF metrics being exported:", JSON.stringify(safeMetrics));
+        
         // Create a worker script as a string
         const workerScript = `
           // Import jsPDF from CDN
@@ -63,7 +78,7 @@ const usePDFExport = () => {
                 let yPos = 130;
                 
                 metrics.leading.kpis.forEach(kpi => {
-                  pdf.text(kpi.name + ': ' + kpi.actual + kpi.unit + ' (Target: ' + kpi.target + kpi.unit + ')', 20, yPos);
+                  pdf.text(kpi.name + ': ' + kpi.actual + (kpi.unit || '') + ' (Target: ' + kpi.target + (kpi.unit || '') + ')', 20, yPos);
                   yPos += 10;
                 });
               }
@@ -133,7 +148,7 @@ const usePDFExport = () => {
         };
         
         // Send data to the worker
-        worker.postMessage({ metrics, selectedCompany });
+        worker.postMessage({ metrics: safeMetrics, selectedCompany });
       } catch (err) {
         console.error('Error setting up PDF export:', err);
         setError(err.message);
