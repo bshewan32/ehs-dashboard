@@ -21,20 +21,8 @@ const usePDFExport = () => {
         setError(null);
         console.log("Starting PDF export with inline worker...");
         
-        // Check if metrics is valid to prevent crashes
-        const safeMetrics = metrics || {
-          lagging: {
-            incidentCount: 0,
-            nearMissCount: 0,
-            firstAidCount: 0,
-            medicalTreatmentCount: 0
-          },
-          leading: {
-            kpis: []
-          }
-        };
-        
-        console.log("PDF metrics being exported:", JSON.stringify(safeMetrics));
+        // Just use the metrics passed, which should already be sanitized
+        console.log("PDF metrics being exported:", JSON.stringify(metrics));
         
         // Create a worker script as a string
         const workerScript = `
@@ -148,7 +136,7 @@ const usePDFExport = () => {
         };
         
         // Send data to the worker
-        worker.postMessage({ metrics: safeMetrics, selectedCompany });
+        worker.postMessage({ metrics, selectedCompany });
       } catch (err) {
         console.error('Error setting up PDF export:', err);
         setError(err.message);
@@ -367,7 +355,31 @@ useEffect(() => {
 
   // Handle PDF export using web worker
   const handleExportToPDF = useCallback(() => {
-    exportToPDF(metrics, selectedCompany)
+    // Log detailed metrics info for debugging
+    console.log('PDF Export - complete metrics object:', metrics);
+    console.log('PDF Export - selected company:', selectedCompany);
+    
+    // Create safe metrics object to prevent crashes
+    const safeMetrics = {
+      lagging: {
+        incidentCount: metrics?.lagging?.incidentCount || 0,
+        nearMissCount: metrics?.lagging?.nearMissCount || 0,
+        firstAidCount: metrics?.lagging?.firstAidCount || 0,
+        medicalTreatmentCount: metrics?.lagging?.medicalTreatmentCount || 0
+      },
+      leading: {
+        trainingCompleted: metrics?.leading?.trainingCompleted || 0,
+        inspectionsCompleted: metrics?.leading?.inspectionsCompleted || 0,
+        kpis: Array.isArray(metrics?.leading?.kpis) ? 
+          metrics.leading.kpis.map(kpi => ({
+            ...kpi,
+            unit: kpi.unit || '%' // Ensure unit exists
+          })) : 
+          []
+      }
+    };
+    
+    exportToPDF(safeMetrics, selectedCompany)
       .catch(err => {
         console.error('Failed to export PDF:', err);
         alert('PDF export failed: ' + err.message);
