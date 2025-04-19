@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { fetchInspections } from '../components/services/api';
+import { fetchInspectionById, updateFindingStatus } from '../components/services/api';
 
 export default function InspectionDetailsPage() {
   const { id } = useParams();
@@ -12,13 +12,11 @@ export default function InspectionDetailsPage() {
     const getInspectionDetails = async () => {
       try {
         setLoading(true);
-        // Fetch all inspections and find the one with matching ID
-        // In a production app, you'd create a specific API endpoint for this
-        const inspections = await fetchInspections();
-        const found = inspections.find(insp => insp._id === id);
+        // Use the dedicated endpoint for fetching a single inspection
+        const inspection = await fetchInspectionById(id);
         
-        if (found) {
-          setInspection(found);
+        if (inspection) {
+          setInspection(inspection);
         } else {
           setError('Inspection not found');
         }
@@ -55,6 +53,27 @@ export default function InspectionDetailsPage() {
       </div>
     );
   }
+
+  // Handle updating finding status
+  const handleToggleResolved = async (findingIndex, currentStatus) => {
+    try {
+      const newStatus = !currentStatus;
+      await updateFindingStatus(inspection._id, findingIndex, newStatus);
+      
+      // Update the local state to reflect the change
+      setInspection(prev => {
+        const updatedFindings = [...prev.findings];
+        updatedFindings[findingIndex] = {
+          ...updatedFindings[findingIndex],
+          resolved: newStatus
+        };
+        return { ...prev, findings: updatedFindings };
+      });
+    } catch (err) {
+      console.error('Error updating finding status:', err);
+      alert('Failed to update finding status. Please try again.');
+    }
+  };
 
   // Calculate statistics
   const highFindings = inspection.findings.filter(f => f.severity === 'High').length;
@@ -135,13 +154,16 @@ export default function InspectionDetailsPage() {
                         <p className="text-sm text-gray-500">{finding.severity} severity</p>
                       </div>
                       <div className="mt-1 flex justify-between">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          finding.resolved 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
+                        <button 
+                          onClick={() => handleToggleResolved(index, finding.resolved)}
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            finding.resolved 
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                              : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                          }`}
+                        >
                           {finding.resolved ? 'Resolved' : 'Unresolved'}
-                        </span>
+                        </button>
                       </div>
                     </div>
                   </div>

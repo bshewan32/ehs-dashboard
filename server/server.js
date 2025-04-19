@@ -11,7 +11,9 @@ app.use(express.json());
 
 // Enable CORS for your frontend
 app.use(cors({
-  origin: 'https://ehs-dashboard.vercel.app',
+  origin: process.env.NODE_ENV === 'production' 
+    ? 'https://ehs-dashboard.vercel.app' 
+    : ['http://localhost:3000', 'http://localhost:5000'],
   credentials: true,
 }));
 

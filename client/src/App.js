@@ -4,7 +4,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import ReportForm from './components/forms/ReportForm';
 import InspectionsPage from './pages/InspectionsPage.js';
-import InspectionFormPage from './pages/InspectionsPage.js';
+import InspectionFormPage from './components/forms/InspectionFormPage.js';
 import InspectionDetailsPage from './pages/InspectionDetailsPage';
 import ReportsPage from './pages/ReportsPage';
 import Navigation from './components/layout/Navigation.js';

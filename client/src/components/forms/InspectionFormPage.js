@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import InspectionForm from '../components/forms/InspectionForm';
+import InspectionForm from './InspectionForm';
 
 export default function InspectionFormPage() {
   return (
