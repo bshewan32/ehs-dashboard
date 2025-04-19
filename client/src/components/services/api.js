@@ -1,4 +1,3 @@
-// client/src/components/services/api.js
 const api_url = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 /**
@@ -151,6 +150,8 @@ export const fetchReports = async () => {
     } catch (cacheError) {
       console.error('Could not retrieve reports cache:', cacheError);
     }
+
+    
     
     // Return mock data to prevent UI breaking
     return [
@@ -201,9 +202,26 @@ export const fetchReports = async () => {
 
 /**
  * Fetch all inspections from the server
+ * With caching to reduce API calls
  */
 export const fetchInspections = async () => {
   try {
+    // Check for cached inspections
+    const cacheKey = 'inspectionsCache';
+    const cachedData = localStorage.getItem(cacheKey);
+    
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData);
+      const cacheAge = Date.now() - timestamp;
+      const maxCacheAge = 5 * 60 * 1000; // 5 minutes
+      
+      if (cacheAge < maxCacheAge) {
+        console.log(`Using cached inspections (age: ${Math.round(cacheAge/1000)}s, count: ${data.length})`);
+        return data;
+      }
+    }
+    
+    console.log('Fetching fresh inspections from API');
     const token = localStorage.getItem('token');
     
     const headers = {
@@ -222,11 +240,79 @@ export const fetchInspections = async () => {
       throw new Error(`Failed to fetch inspections: ${response.status} ${response.statusText}`);
     }
     
-    return await response.json();
+    const data = await response.json();
+    
+    // Cache the results
+    localStorage.setItem(cacheKey, JSON.stringify({
+      data,
+      timestamp: Date.now()
+    }));
+    
+    return data;
   } catch (error) {
     console.error('Error fetching inspections:', error);
+    
+    // Try to use cached data even if it's expired
+    try {
+      const cacheKey = 'inspectionsCache';
+      const cachedData = localStorage.getItem(cacheKey);
+      
+      if (cachedData) {
+        console.log('Error occurred, using expired inspections cache as fallback');
+        const { data } = JSON.parse(cachedData);
+        return data;
+      }
+    } catch (cacheError) {
+      console.error('Could not retrieve inspections cache:', cacheError);
+    }
+    
     // Return empty array as fallback
     return [];
+  }
+};
+
+/**
+ * Fetch a specific inspection by ID
+ */
+export const fetchInspectionById = async (inspectionId) => {
+  try {
+    // Check cached inspections first
+    const cacheKey = 'inspectionsCache';
+    const cachedData = localStorage.getItem(cacheKey);
+    
+    if (cachedData) {
+      const { data } = JSON.parse(cachedData);
+      const cachedInspection = data.find(insp => insp._id === inspectionId);
+      
+      if (cachedInspection) {
+        console.log(`Using cached inspection for ID: ${inspectionId}`);
+        return cachedInspection;
+      }
+    }
+    
+    console.log(`Fetching inspection with ID: ${inspectionId}`);
+    const token = localStorage.getItem('token');
+    
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}`, {
+      headers,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching inspection ${inspectionId}:`, error);
+    throw error;
   }
 };
 
@@ -255,9 +341,82 @@ export const submitInspection = async (inspectionData) => {
       throw new Error(`Failed to submit inspection: ${response.status} ${response.statusText}`);
     }
     
+    // Clear the inspections cache to ensure fresh data on next fetch
+    localStorage.removeItem('inspectionsCache');
+    
     return await response.json();
   } catch (error) {
     console.error('Error submitting inspection:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update an existing inspection
+ */
+export const updateInspection = async (inspectionId, inspectionData) => {
+  try {
+    const token = localStorage.getItem('token');
+    
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(inspectionData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    // Clear the inspections cache to ensure fresh data on next fetch
+    localStorage.removeItem('inspectionsCache');
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating inspection:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update the status of a specific finding within an inspection
+ */
+export const updateFindingStatus = async (inspectionId, findingIndex, resolved) => {
+  try {
+    const token = localStorage.getItem('token');
+    
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}/findings/${findingIndex}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ resolved }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update finding: ${response.status} ${response.statusText}`);
+    }
+    
+    // Clear the inspections cache to ensure fresh data on next fetch
+    localStorage.removeItem('inspectionsCache');
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating finding status:', error);
     throw error;
   }
 };
@@ -474,6 +633,40 @@ export const fetchCompanyMetrics = async (companyName) => {
   } catch (error) {
     console.error('Error fetching company metrics:', error);
     return createDefaultMetrics();
+  }
+};
+
+/**
+ * Delete an inspection by ID
+ */
+export const deleteInspection = async (inspectionId) => {
+  try {
+    const token = localStorage.getItem('token');
+    
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}`, {
+      method: 'DELETE',
+      headers,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to delete inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    // Clear the inspections cache to ensure fresh data on next fetch
+    localStorage.removeItem('inspectionsCache');
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error deleting inspection ${inspectionId}:`, error);
+    throw error;
   }
 };
 
