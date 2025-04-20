@@ -6,12 +6,10 @@ import {
 } from 'recharts';
 
 const TrainingComplianceCharts = ({ trainingData }) => {
-  if (!trainingData || !trainingData.records || trainingData.records.length === 0) {
-    return null;
-  }
-
   // Prepare status data for pie chart
   const statusData = React.useMemo(() => {
+    if (!trainingData || !trainingData.stats) return [];
+    
     const { completed, expired, upcoming, total } = trainingData.stats;
     const notStarted = total - (completed + expired + upcoming);
     
@@ -25,7 +23,7 @@ const TrainingComplianceCharts = ({ trainingData }) => {
 
   // Prepare data for training types chart
   const trainingTypeData = React.useMemo(() => {
-    if (!trainingData.records) return [];
+    if (!trainingData || !trainingData.records) return [];
     
     // Count occurrences of each training type
     const typeCount = trainingData.records.reduce((acc, record) => {
@@ -54,6 +52,11 @@ const TrainingComplianceCharts = ({ trainingData }) => {
       .sort((a, b) => b.total - a.total)
       .slice(0, 6); // Show top 6 training types
   }, [trainingData]);
+
+  // Early return if no data is available
+  if (!trainingData || !trainingData.records || trainingData.records.length === 0) {
+    return null;
+  }
 
   // Custom tooltip for the pie chart
   const CustomPieTooltip = ({ active, payload }) => {
