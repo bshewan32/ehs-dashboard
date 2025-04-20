@@ -35,7 +35,8 @@ app.get('/', (req, res) => {
 // Routes
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/inspections', require('./routes/inspections'));
-app.use('/api/ai', require('./routes/ai')); // Add the new AI route
+app.use('/api/ai', require('./routes/ai')); 
+app.use('/api/training', require('./routes/training')); // Add the new training route
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
