@@ -161,3 +161,8 @@ export const fetchTrainingData = async (forceRefresh = false) => {
     
     // No data found
     return null;
+  } catch (error) {
+    console.error('Error fetching training data:', error);
+    return null;
+  }
+};
