@@ -1,0 +1,114 @@
+// client/src/pages/TrainingPage.js
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import TrainingUploader from '../components/training/TrainingUploader';
+import TrainingComplianceDisplay from '../components/training/TrainingComplianceDisplay';
+import TrainingComplianceCharts from '../components/training/TrainingComplianceCharts';
+import ExcelTemplateDisplay from '../components/training/ExcelTemplateDisplay';
+import { saveTrainingData, fetchTrainingData } from '../components/services/trainingApi';
+
+const TrainingPage = () => {
+  const [trainingData, setTrainingData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Load existing training data if available
+  useEffect(() => {
+    const loadTrainingData = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchTrainingData();
+        if (data) {
+          setTrainingData(data);
+        }
+        setError(null);
+      } catch (err) {
+        console.error('Error loading training data:', err);
+        setError('Failed to load training data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTrainingData();
+  }, []);
+
+  // Handle data from the uploader component
+  const handleTrainingDataProcessed = async (data) => {
+    setTrainingData(data);
+    
+    try {
+      // Save the processed data to the server (if needed)
+      await saveTrainingData(data);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error saving training data:', err);
+      setError('Failed to save training data, but it\'s available for your current session');
+    }
+  };
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-800">Training Dashboard</h1>
+        <div className="space-x-4">
+          <Link to="/">
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700">
+              Back to Main Dashboard
+            </button>
+          </Link>
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 text-red-700">
+          <p className="font-bold">Error</p>
+          <p>{error}</p>
+        </div>
+      )}
+
+      {saveSuccess && (
+        <div className="bg-green-50 border-l-4 border-green-500 p-4 text-green-700">
+          <p>Training data saved successfully!</p>
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold mb-4">Upload Training Certificate Data</h2>
+        <p className="text-gray-600 mb-4">
+          Upload an Excel file containing training certificates to analyze compliance status and upcoming renewals.
+        </p>
+        
+        <TrainingUploader onDataProcessed={handleTrainingDataProcessed} />
+        
+        <ExcelTemplateDisplay />
+        
+        <div className="mt-4 text-sm text-gray-500">
+          <p>The system will automatically calculate compliance and identify certificates that are expiring soon.</p>
+          <p>Training compliance will be included in the overall safety metrics for your dashboard.</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center p-10">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
+          <p className="mt-2 text-gray-600">Loading training data...</p>
+        </div>
+      ) : (
+        <>
+          <TrainingComplianceDisplay trainingData={trainingData} />
+          
+          {trainingData && trainingData.records && trainingData.records.length > 0 && (
+            <div className="mt-6">
+              <TrainingComplianceCharts trainingData={trainingData} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+export default TrainingPage;

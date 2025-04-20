@@ -8,6 +8,8 @@ import InspectionFormPage from './components/forms/InspectionFormPage.js';
 import InspectionDetailsPage from './pages/InspectionDetailsPage';
 import ReportsPage from './pages/ReportsPage';
 import Navigation from './components/layout/Navigation.js';
+import TrainingPage from './pages/TrainingPage';
+
 
 function App() {
   return (
@@ -22,6 +24,7 @@ function App() {
             <Route path="/inspections/new" element={<InspectionFormPage />} />
             <Route path="/inspections/:id" element={<InspectionDetailsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/training" element={<TrainingPage />} />
           </Routes>
         </div>
       </div>
