@@ -4,7 +4,7 @@ import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
-import TrainingComplianceWidget from '../components/dashboard/TrainingComplianceWidget';
+import TrainingSummary from '../components/dashboard/TrainingSummary';
 import { fetchMetricsSummary } from '../components/services/api';
 import { fetchTrainingData, updateMetricsWithTrainingData } from '../components/services/trainingApi';
 import jsPDF from 'jspdf';
@@ -201,6 +201,7 @@ export default function Dashboard() {
   
   // Handler for year filter changes from TrendCharts
   const handleYearChange = (year) => {
+    console.log('Year changed to:', year);
     setSelectedYear(year);
   };
 
@@ -269,7 +270,7 @@ export default function Dashboard() {
         
         {/* Two-column layout for KPIs and Training */}
         <KPIOverview metrics={metrics} />
-        <TrainingComplianceWidget trainingData={trainingData} />
+        <TrainingSummary trainingData={trainingData} />
         
         {/* Full width for trend charts */}
         <div className="md:col-span-2">
@@ -278,6 +279,7 @@ export default function Dashboard() {
             onYearChange={handleYearChange}
             selectedYear={selectedYear}
             selectedCompany={selectedCompany}
+            key={`trends-${selectedYear}-${selectedCompany || 'all'}`} // Force re-render when filters change
           />
         </div>
         
