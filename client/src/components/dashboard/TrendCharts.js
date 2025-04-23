@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
 import { fetchReports } from '../services/api';
+import CompanyFilter from './CompanyFilter';
 
-const TrendCharts = () => {
+const TrendCharts = ({ onCompanyChange, onYearChange }) => {
   const [incidentData, setIncidentData] = useState([]);
   const [kpiData, setKpiData] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedCompany, setSelectedCompany] = useState(null);
 
   // Helper function to ensure valid period names
   const formatPeriod = (period) => {
@@ -70,8 +72,13 @@ const TrendCharts = () => {
         return;
       }
       
+      // Filter reports by company if selected
+      const filteredReports = selectedCompany
+        ? reports.filter(report => report.companyName === selectedCompany)
+        : reports;
+      
       // Process incident data with fallbacks for different data structures
-      const trendData = reports.map((report) => {
+      const trendData = filteredReports.map((report) => {
         // First try regular structure
         let incidents = report.metrics?.lagging?.incidentCount;
         if (incidents === undefined) {
@@ -195,7 +202,7 @@ const TrendCharts = () => {
         setKpiData(fallbackKpiData);
       }
     }
-  }, [lastFetchTime, incidentData.length, selectedYear]);
+  }, [lastFetchTime, incidentData.length, selectedYear, selectedCompany]);
 
   useEffect(() => {
     // Initial data load
@@ -210,7 +217,21 @@ const TrendCharts = () => {
 
   // Function to handle year change
   const handleYearChange = (e) => {
-    setSelectedYear(parseInt(e.target.value));
+    const year = parseInt(e.target.value);
+    setSelectedYear(year);
+    // Notify parent component if callback provided
+    if (onYearChange) {
+      onYearChange(year);
+    }
+  };
+  
+  // Handle company selection change
+  const handleCompanyChange = (company) => {
+    setSelectedCompany(company);
+    // Notify parent component if callback provided
+    if (onCompanyChange) {
+      onCompanyChange(company);
+    }
   };
 
   // Get a list of available years from data
@@ -234,8 +255,16 @@ const TrendCharts = () => {
 
   return (
     <div className="space-y-8">
+      {/* Company Filter */}
+      <div className="mb-2">
+        <CompanyFilter onChange={handleCompanyChange} selectedCompany={selectedCompany} />
+      </div>
+      
       <div className="p-4 bg-white rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">Incident & Near Miss Trends</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          Incident & Near Miss Trends
+          {selectedCompany && <span className="text-sm font-normal text-gray-500 ml-2">for {selectedCompany}</span>}
+        </h2>
         {incidentData.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No incident data available</p>
         ) : (
@@ -268,7 +297,10 @@ const TrendCharts = () => {
 
       <div className="p-4 bg-white rounded shadow">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">KPI Trends</h2>
+          <h2 className="text-xl font-semibold">
+            KPI Trends
+            {selectedCompany && <span className="text-sm font-normal text-gray-500 ml-2">for {selectedCompany}</span>}
+          </h2>
           <div className="flex items-center">
             <label htmlFor="yearFilter" className="mr-2 text-sm text-gray-600">Year:</label>
             <select 
