@@ -4,7 +4,10 @@ import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
+import TrainingSummary from '../components/dashboard/TrainingSummary';
+import TrainingComplianceWidget from '../components/dashboard/TrainingComplianceWidget';
 import { fetchMetricsSummary } from '../components/services/api';
+import { fetchTrainingData, updateMetricsWithTrainingData } from '../components/services/trainingApi';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -16,6 +19,7 @@ export default function Dashboard() {
   const [exporting, setExporting] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [trainingData, setTrainingData] = useState(null);
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -42,6 +46,18 @@ export default function Dashboard() {
     },
   ];
 
+  // Fetch training data
+  const fetchTrainingInfo = useCallback(async () => {
+    try {
+      const data = await fetchTrainingData();
+      setTrainingData(data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching training data:', error);
+      return null;
+    }
+  }, []);
+
   // Modify your fetchMetrics function to not depend on metrics
   const fetchMetrics = useCallback(async () => {
     // Throttle API calls - only fetch if it's been at least 10 seconds
@@ -54,13 +70,16 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
+      // Fetch training data first
+      const trainingInfo = await fetchTrainingInfo();
+      
       // Use our API service instead of direct fetch
       const data = await fetchMetricsSummary();
       console.log('Fetched metrics:', data);
       setLastFetchTime(now);
       
       // Create a properly structured metrics object
-      const processedMetrics = {
+      let processedMetrics = {
         // Ensure these properties exist with fallbacks
         totalIncidents: data.totalIncidents ?? 0,
         totalNearMisses: data.totalNearMisses ?? 0,
@@ -86,6 +105,11 @@ export default function Dashboard() {
           medicalTreatmentCount: data.medicalTreatmentCount ?? 0
         }
       };
+      
+      // Update metrics with training data if available
+      if (trainingInfo) {
+        processedMetrics = updateMetricsWithTrainingData(processedMetrics, trainingInfo);
+      }
       
       // Store processed metrics
       setMetrics(processedMetrics);
@@ -120,7 +144,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [lastFetchTime, defaultKpis]); // Remove metrics from dependencies
+  }, [lastFetchTime, defaultKpis, fetchTrainingInfo]); // Remove metrics from dependencies
 
   useEffect(() => {
     // Initial fetch
@@ -193,6 +217,11 @@ export default function Dashboard() {
           >
             {exporting ? 'Exporting...' : 'Export to PDF'}
           </button>
+          <Link to="/training">
+            <button className="bg-purple-600 text-white px-4 py-2 rounded-xl shadow hover:bg-purple-700">
+              Training Dashboard
+            </button>
+          </Link>
           <Link to="/report/new">
             <button className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700">
               + Create New Report
@@ -213,19 +242,37 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      <div className="space-y-6">
-        {/* Pass the metrics explicitly to each component */}
-        <MetricsOverview metrics={metrics} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Main metrics overview (full width) */}
+        <div className="md:col-span-2">
+          <MetricsOverview metrics={metrics} />
+        </div>
+        
+        {/* Two-column layout for KPIs and Training */}
         <KPIOverview metrics={metrics} />
-        <TrendCharts 
-          onCompanyChange={handleCompanyChange}
-          onYearChange={handleYearChange}
-        />
-        <AIPanel 
-          metrics={metrics} 
-          selectedYear={selectedYear}
-          selectedCompany={selectedCompany}
-        />
+        <TrainingComplianceWidget trainingData={trainingData} />
+        
+        {/* Full width for trend charts */}
+        <div className="md:col-span-2">
+          <TrendCharts 
+            onCompanyChange={handleCompanyChange}
+            onYearChange={handleYearChange}
+          />
+        </div>
+        
+        {/* Training summary in its own row */}
+        <div className="md:col-span-2">
+          <TrainingSummary trainingData={trainingData} />
+        </div>
+        
+        {/* AI panel at the bottom (full width) */}
+        <div className="md:col-span-2">
+          <AIPanel 
+            metrics={metrics} 
+            selectedYear={selectedYear}
+            selectedCompany={selectedCompany}
+          />
+        </div>
       </div>
     </div>
   );
