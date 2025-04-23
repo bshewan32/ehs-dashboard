@@ -4,7 +4,6 @@ import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
-import TrainingSummary from '../components/dashboard/TrainingSummary';
 import TrainingComplianceWidget from '../components/dashboard/TrainingComplianceWidget';
 import { fetchMetricsSummary } from '../components/services/api';
 import { fetchTrainingData, updateMetricsWithTrainingData } from '../components/services/trainingApi';
@@ -205,6 +204,9 @@ export default function Dashboard() {
     setSelectedYear(year);
   };
 
+  // Available years for the filter
+  const availableYears = [2023, 2024, 2025, 2026].filter(year => year <= new Date().getFullYear());
+
   return (
     <div id="dashboard-content" className="space-y-6 p-6">
       <div className="flex justify-between items-center">
@@ -228,6 +230,23 @@ export default function Dashboard() {
             </button>
           </Link>
         </div>
+      </div>
+
+      {/* Year Filter */}
+      <div className="flex justify-end items-center">
+        <label htmlFor="year-filter" className="mr-2 text-sm font-medium text-gray-700">
+          Year:
+        </label>
+        <select
+          id="year-filter"
+          value={selectedYear}
+          onChange={(e) => handleYearChange(parseInt(e.target.value))}
+          className="bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+        >
+          {availableYears.map(year => (
+            <option key={year} value={year}>{year}</option>
+          ))}
+        </select>
       </div>
 
       {loading && !metrics ? (
@@ -257,12 +276,9 @@ export default function Dashboard() {
           <TrendCharts 
             onCompanyChange={handleCompanyChange}
             onYearChange={handleYearChange}
+            selectedYear={selectedYear}
+            selectedCompany={selectedCompany}
           />
-        </div>
-        
-        {/* Training summary in its own row */}
-        <div className="md:col-span-2">
-          <TrainingSummary trainingData={trainingData} />
         </div>
         
         {/* AI panel at the bottom (full width) */}
