@@ -1,27 +1,25 @@
 // client/src/components/dashboard/TrainingSummary.js
 import React, { useState, useEffect } from 'react';
-import { fetchTrainingData } from '../services/trainingApi';
 import { Link } from 'react-router-dom';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
-const TrainingSummary = () => {
-  const [trainingData, setTrainingData] = useState(null);
-  const [loading, setLoading] = useState(true);
+const TrainingSummary = ({ trainingData, showPieChart = false }) => {
+  const [statusData, setStatusData] = useState([]);
   
+  // Prepare data for status pie chart
   useEffect(() => {
-    const loadTrainingData = async () => {
-      try {
-        setLoading(true);
-        const data = await fetchTrainingData();
-        setTrainingData(data);
-      } catch (error) {
-        console.error('Error loading training data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadTrainingData();
-  }, []);
+    if (trainingData && trainingData.stats) {
+      const { completed, expired, upcoming, total } = trainingData.stats;
+      const notStarted = total - (completed + expired + upcoming);
+      
+      setStatusData([
+        { name: 'Current', value: completed, color: '#10b981' },
+        { name: 'Expired', value: expired, color: '#ef4444' },
+        { name: 'Due Soon', value: upcoming, color: '#f59e0b' },
+        { name: 'Not Started', value: notStarted > 0 ? notStarted : 0, color: '#6b7280' }
+      ].filter(item => item.value > 0));
+    }
+  }, [trainingData]);
   
   // Get the appropriate color based on compliance percentage
   const getComplianceColor = (percentage) => {
@@ -30,8 +28,25 @@ const TrainingSummary = () => {
     return "text-red-500";
   };
   
+  // Custom tooltip for pie chart
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const { name, value } = payload[0].payload;
+      const percentage = ((value / trainingData.stats.total) * 100).toFixed(1);
+      
+      return (
+        <div className="bg-white p-2 shadow-md border rounded text-xs">
+          <p className="font-medium">{name}</p>
+          <p>{value} certificates ({percentage}%)</p>
+        </div>
+      );
+    }
+    
+    return null;
+  };
+  
   // Handle missing training data
-  if (!trainingData && !loading) {
+  if (!trainingData) {
     return (
       <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500">
         <div className="flex justify-between items-start mb-3">
@@ -50,48 +65,26 @@ const TrainingSummary = () => {
     );
   }
   
-  // Handle loading state
-  if (loading) {
-    return (
-      <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500">
-        <h2 className="text-lg font-semibold mb-3">Training Compliance</h2>
-        <div className="flex justify-center items-center py-4">
-          <div className="animate-pulse flex space-x-4">
-            <div className="h-3 w-3 bg-blue-400 rounded-full"></div>
-            <div className="h-3 w-3 bg-blue-400 rounded-full"></div>
-            <div className="h-3 w-3 bg-blue-400 rounded-full"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
   // Extract data from trainingData
-  const {
-    compliance = 0,
-    stats = { completed: 0, expired: 0, upcoming: 0, total: 0 },
-    upcomingRenewals = []
-  } = trainingData;
-  
-  // Get color for compliance percentage
+  const compliance = trainingData.compliance || 0;
   const complianceColor = getComplianceColor(compliance);
   
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500">
+    <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500 h-full">
       <div className="flex justify-between items-start mb-3">
         <h2 className="text-lg font-semibold">Training Compliance</h2>
         <Link to="/training" className="text-blue-600 hover:text-blue-800 text-sm">
-          Manage Training
+          View Details
         </Link>
       </div>
       
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-gray-50 p-3 rounded border border-gray-200">
-          <div className="text-sm text-gray-500">Compliance Rate</div>
-          <div className={`text-xl font-bold ${complianceColor}`}>
+      <div className="flex flex-col h-full">
+        <div className="text-center mb-3">
+          <p className="text-sm text-gray-600">Overall Compliance</p>
+          <div className={`text-2xl font-bold ${complianceColor}`}>
             {compliance.toFixed(1)}%
           </div>
-          <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
+          <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
             <div 
               className={`h-1.5 rounded-full ${
                 compliance >= 90 ? 'bg-green-500' : 
@@ -103,48 +96,56 @@ const TrainingSummary = () => {
           </div>
         </div>
         
-        <div className="bg-gray-50 p-3 rounded border border-gray-200">
-          <div className="text-sm text-gray-500">Certificate Status</div>
-          <div className="grid grid-cols-3 gap-2 mt-1">
+        {showPieChart && statusData.length > 0 ? (
+          <div className="flex-grow" style={{ minHeight: "160px" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={statusData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={30}
+                  outerRadius={60}
+                  paddingAngle={1}
+                  dataKey="value"
+                >
+                  {statusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 mt-2">
             <div>
               <div className="text-xs text-gray-500">Current</div>
-              <div className="text-base font-medium text-green-600">{stats.completed}</div>
+              <div className="text-base font-medium text-green-600">{trainingData.stats.completed || 0}</div>
             </div>
             <div>
               <div className="text-xs text-gray-500">Expiring</div>
-              <div className="text-base font-medium text-yellow-500">{stats.upcoming}</div>
+              <div className="text-base font-medium text-yellow-500">{trainingData.stats.upcoming || 0}</div>
             </div>
             <div>
               <div className="text-xs text-gray-500">Expired</div>
-              <div className="text-base font-medium text-red-600">{stats.expired}</div>
+              <div className="text-base font-medium text-red-600">{trainingData.stats.expired || 0}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">Total</div>
+              <div className="text-base font-medium text-gray-700">{trainingData.stats.total || 0}</div>
             </div>
           </div>
-        </div>
-      </div>
-      
-      {/* Show upcoming renewals if available */}
-      {upcomingRenewals.length > 0 && (
-        <div className="mt-3">
-          <h3 className="text-sm font-medium text-gray-700 mb-1">Upcoming Renewals</h3>
-          <div className="max-h-24 overflow-y-auto">
-            {upcomingRenewals.slice(0, 3).map((renewal, index) => (
-              <div key={index} className="flex justify-between items-center text-xs py-1 border-b">
-                <span className="text-gray-800">{renewal.employee} - {renewal.trainingType}</span>
-                <span className={`${
-                  renewal.daysRemaining <= 7 ? 'text-red-600' : 'text-yellow-600'
-                }`}>
-                  {renewal.daysRemaining} days
-                </span>
-              </div>
-            ))}
-            {upcomingRenewals.length > 3 && (
-              <Link to="/training" className="text-xs text-blue-600 block mt-1">
-                View all {upcomingRenewals.length} upcoming renewals
-              </Link>
-            )}
+        )}
+        
+        {trainingData.stats.expired > 0 && (
+          <div className="mt-auto pt-2">
+            <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
+              <span className="font-medium">{trainingData.stats.expired} expired certificates</span> require immediate action
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

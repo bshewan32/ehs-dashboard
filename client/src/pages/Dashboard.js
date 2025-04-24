@@ -16,7 +16,6 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const [exporting, setExporting] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [trainingData, setTrainingData] = useState(null);
 
@@ -198,15 +197,6 @@ export default function Dashboard() {
   const handleCompanyChange = (company) => {
     setSelectedCompany(company);
   };
-  
-  // Handler for year filter changes from TrendCharts
-  const handleYearChange = (year) => {
-    console.log('Year changed to:', year);
-    setSelectedYear(year);
-  };
-
-  // Available years for the filter
-  const availableYears = [2023, 2024, 2025, 2026].filter(year => year <= new Date().getFullYear());
 
   return (
     <div id="dashboard-content" className="space-y-6 p-6">
@@ -233,23 +223,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Year Filter */}
-      <div className="flex justify-end items-center">
-        <label htmlFor="year-filter" className="mr-2 text-sm font-medium text-gray-700">
-          Year:
-        </label>
-        <select
-          id="year-filter"
-          value={selectedYear}
-          onChange={(e) => handleYearChange(parseInt(e.target.value))}
-          className="bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-        >
-          {availableYears.map(year => (
-            <option key={year} value={year}>{year}</option>
-          ))}
-        </select>
-      </div>
-
       {loading && !metrics ? (
         <div className="text-center p-10 text-gray-500">
           <div className="text-xl">Loading dashboard data...</div>
@@ -270,16 +243,14 @@ export default function Dashboard() {
         
         {/* Two-column layout for KPIs and Training */}
         <KPIOverview metrics={metrics} />
-        <TrainingSummary trainingData={trainingData} />
+        <TrainingSummary trainingData={trainingData} showPieChart={true} />
         
-        {/* Full width for trend charts */}
+        {/* Full width for trend charts with embedded year filter */}
         <div className="md:col-span-2">
           <TrendCharts 
             onCompanyChange={handleCompanyChange}
-            onYearChange={handleYearChange}
-            selectedYear={selectedYear}
             selectedCompany={selectedCompany}
-            key={`trends-${selectedYear}-${selectedCompany || 'all'}`} // Force re-render when filters change
+            enableYearFilter={true}  // Enable built-in year filter
           />
         </div>
         
@@ -287,7 +258,6 @@ export default function Dashboard() {
         <div className="md:col-span-2">
           <AIPanel 
             metrics={metrics} 
-            selectedYear={selectedYear}
             selectedCompany={selectedCompany}
           />
         </div>
