@@ -35,6 +35,7 @@ export default function ReportsPage() {
                 <th className="px-4 py-2 border">Near Misses</th>
                 <th className="px-4 py-2 border">First Aids</th>
                 <th className="px-4 py-2 border">Medical Treatments</th>
+                <th className="px-4 py-2 border">Lost Time Injuries</th>
                 <th className="px-4 py-2 border">Training Compliance (%)</th>
                 <th className="px-4 py-2 border">Avg Risk Score</th>
               </tr>
@@ -45,10 +46,11 @@ export default function ReportsPage() {
                   <td className="px-4 py-2 border">{report.companyName}</td>
                   <td className="px-4 py-2 border">{report.reportPeriod}</td>
                   <td className="px-4 py-2 border">{report.reportType}</td>
-                  <td className="px-4 py-2 border">{report.metrics?.totalIncidents ?? report.metrics?.lagging?.incidentCount ?? 0}</td>
-                  <td className="px-4 py-2 border">{report.metrics?.totalNearMisses ?? report.metrics?.lagging?.nearMissCount ?? 0}</td>
-                  <td className="px-4 py-2 border">{report.metrics?.firstAidCount ?? 0}</td>
-                  <td className="px-4 py-2 border">{report.metrics?.medicalTreatmentCount ?? 0}</td>
+                  <td className="px-4 py-2 border">{report.metrics?.lagging?.incidentCount ?? report.metrics?.totalIncidents ?? 0}</td>
+                  <td className="px-4 py-2 border">{report.metrics?.lagging?.nearMissCount ?? report.metrics?.totalNearMisses ?? 0}</td>
+                  <td className="px-4 py-2 border">{report.metrics?.lagging?.firstAidCount ?? report.metrics?.firstAidCount ?? 0}</td>
+                  <td className="px-4 py-2 border">{report.metrics?.lagging?.medicalTreatmentCount ?? report.metrics?.medicalTreatmentCount ?? 0}</td>
+                  <td className="px-4 py-2 border">{report.metrics?.lagging?.lostTimeInjuryCount ?? 0}</td>
                   <td className="px-4 py-2 border">{report.metrics?.trainingCompliance ?? 0}</td>
                   <td className="px-4 py-2 border">{report.metrics?.riskScore ?? 0}</td>
                 </tr>
