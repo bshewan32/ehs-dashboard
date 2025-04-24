@@ -48,7 +48,7 @@ const TrainingSummary = ({ trainingData, showPieChart = false }) => {
   // Handle missing training data
   if (!trainingData) {
     return (
-      <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500">
+      <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500 h-full" style={{ minHeight: "300px", maxHeight: "300px" }}>
         <div className="flex justify-between items-start mb-3">
           <h2 className="text-lg font-semibold">Training Compliance</h2>
           <Link to="/training" className="text-blue-600 hover:text-blue-800 text-sm">
@@ -70,7 +70,7 @@ const TrainingSummary = ({ trainingData, showPieChart = false }) => {
   const complianceColor = getComplianceColor(compliance);
   
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500 h-full">
+    <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500" style={{ minHeight: "300px", maxHeight: "300px", height: "300px" }}>
       <div className="flex justify-between items-start mb-3">
         <h2 className="text-lg font-semibold">Training Compliance</h2>
         <Link to="/training" className="text-blue-600 hover:text-blue-800 text-sm">
@@ -78,7 +78,7 @@ const TrainingSummary = ({ trainingData, showPieChart = false }) => {
         </Link>
       </div>
       
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col" style={{ height: "calc(100% - 40px)" }}>
         <div className="text-center mb-3">
           <p className="text-sm text-gray-600">Overall Compliance</p>
           <div className={`text-2xl font-bold ${complianceColor}`}>
@@ -97,15 +97,15 @@ const TrainingSummary = ({ trainingData, showPieChart = false }) => {
         </div>
         
         {showPieChart && statusData.length > 0 ? (
-          <div className="flex-grow" style={{ minHeight: "160px" }}>
+          <div className="flex-grow" style={{ height: "150px", minHeight: "150px", maxHeight: "150px" }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={statusData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={30}
-                  outerRadius={60}
+                  innerRadius={25}
+                  outerRadius={50}
                   paddingAngle={1}
                   dataKey="value"
                 >
@@ -141,7 +141,7 @@ const TrainingSummary = ({ trainingData, showPieChart = false }) => {
         {trainingData.stats.expired > 0 && (
           <div className="mt-auto pt-2">
             <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
-              <span className="font-medium">{trainingData.stats.expired} expired certificates</span> require immediate action
+              <span className="font-medium">{trainingData.stats.expired} expired certificates</span> require action
             </div>
           </div>
         )}
