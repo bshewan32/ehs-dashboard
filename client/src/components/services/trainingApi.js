@@ -36,19 +36,8 @@ const getHeaders = () => {
 // Save training data to server
 export const saveTrainingData = async (trainingData) => {
   try {
-    // If backend API not set up yet, save to localStorage as fallback
-    if (!api_url || api_url === 'http://localhost:5000') {
-      localStorage.setItem('trainingData', JSON.stringify({
-        data: trainingData,
-        timestamp: Date.now()
-      }));
-      
-      // Update cache
-      trainingCache.data = trainingData;
-      trainingCache.timestamp = Date.now();
-      
-      return { success: true, message: 'Training data saved locally' };
-    }
+    // Clear cache to ensure fresh data on next fetch
+    trainingCache.data = null;
     
     // Send to backend API
     const response = await fetch(`${api_url}/api/training`, {
@@ -62,11 +51,6 @@ export const saveTrainingData = async (trainingData) => {
     }
     
     const result = await response.json();
-    
-    // Update cache
-    trainingCache.data = trainingData;
-    trainingCache.timestamp = Date.now();
-    
     return result;
   } catch (error) {
     console.error('Error saving training data:', error);
@@ -77,10 +61,6 @@ export const saveTrainingData = async (trainingData) => {
         data: trainingData,
         timestamp: Date.now()
       }));
-      
-      // Update cache
-      trainingCache.data = trainingData;
-      trainingCache.timestamp = Date.now();
       
       return { success: true, message: 'Training data saved locally (API unavailable)' };
     } catch (localError) {
@@ -114,7 +94,7 @@ export const updateMetricsWithTrainingData = (metrics, trainingData) => {
   return updatedMetrics;
 };
 
-// Fetch training data from server or localStorage
+// Fetch training data from server
 export const fetchTrainingData = async (forceRefresh = false) => {
   try {
     // Return cached data if valid and not forcing refresh
@@ -124,45 +104,68 @@ export const fetchTrainingData = async (forceRefresh = false) => {
     }
     
     // Try to fetch from API
-    if (api_url && api_url !== 'http://localhost:5000') {
-      try {
-        const response = await fetch(`${api_url}/api/training`, {
-          headers: getHeaders(),
-        });
+    const response = await fetch(`${api_url}/api/training`, {
+      headers: getHeaders(),
+    });
+    
+    if (response.status === 404) {
+      console.log('No training data found on server');
+      return null;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch training data: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Cache the fetched data
+    trainingCache.data = data;
+    trainingCache.timestamp = Date.now();
+    
+    return data;
+  } catch (error) {
+    console.warn('API fetch failed, falling back to localStorage:', error);
+    
+    // Fallback to localStorage
+    try {
+      const storedData = localStorage.getItem('trainingData');
+      if (storedData) {
+        const { data } = JSON.parse(storedData);
         
-        if (!response.ok) {
-          throw new Error(`Failed to fetch training data: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        // Cache the fetched data
+        // Cache the data
         trainingCache.data = data;
         trainingCache.timestamp = Date.now();
         
         return data;
-      } catch (apiError) {
-        console.warn('API fetch failed, falling back to localStorage:', apiError);
-        // Fall through to localStorage fallback
       }
-    }
-    
-    // Fallback to localStorage
-    const storedData = localStorage.getItem('trainingData');
-    if (storedData) {
-      const { data, timestamp } = JSON.parse(storedData);
-      
-      // Cache the data
-      trainingCache.data = data;
-      trainingCache.timestamp = timestamp;
-      
-      return data;
+    } catch (localError) {
+      console.error('Error reading from localStorage:', localError);
     }
     
     // No data found
     return null;
+  }
+};
+
+// Fetch training metrics summary (used for quick access to compliance metrics)
+export const fetchTrainingMetrics = async () => {
+  try {
+    const response = await fetch(`${api_url}/api/training/metrics`, {
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch training metrics: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
   } catch (error) {
-    console.error('Error fetching training data:', error);
-    return null;
+    console.error('Error fetching training metrics:', error);
+    return {
+      trainingCompliance: 0,
+      upcomingRenewals: 0,
+      expiredCertificates: 0
+    };
   }
 };

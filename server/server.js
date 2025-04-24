@@ -7,37 +7,30 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for larger training data
+app.use(cors());
 
-// Enable CORS for your frontend
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? 'https://ehs-dashboard.vercel.app' 
-    : ['http://localhost:3000', 'http://localhost:5000'],
-  credentials: true,
-}));
-
-// MongoDB Connection
+// Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-}).then(() => {
-  console.log('Connected to MongoDB');
-}).catch((err) => {
+})
+.then(() => console.log('MongoDB connected'))
+.catch(err => {
   console.error('MongoDB connection error:', err);
+  process.exit(1);
 });
 
-// Root Route (basic health check)
+// Define Routes
+app.use('/api/reports', require('./routes/reports'));
+app.use('/api/inspections', require('./routes/inspections'));
+app.use('/api/training', require('./routes/training'));
+app.use('/api/ai', require('./routes/ai'));
+
+// Root route
 app.get('/', (req, res) => {
   res.send('EHS Dashboard API is running');
 });
 
-// Routes
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/inspections', require('./routes/inspections'));
-app.use('/api/ai', require('./routes/ai')); 
-app.use('/api/training', require('./routes/training')); // Add the new training route
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Start server
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

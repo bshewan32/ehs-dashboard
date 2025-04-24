@@ -61,7 +61,8 @@ const TrainingDataSchema = new mongoose.Schema({
   },
   companyId: {
     type: String,
-    default: 'default'
+    default: 'default',
+    index: true  // Add index for faster queries
   },
   uploadDate: {
     type: Date,
