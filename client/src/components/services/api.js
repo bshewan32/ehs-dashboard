@@ -5,6 +5,11 @@ const api_url = process.env.REACT_APP_API_URL || 'http://localhost:5000';
  */
 export const submitReport = async (reportData) => {
   try {
+    // Ensure LTI is included in the metrics
+    if (reportData.metrics && reportData.metrics.lagging && reportData.metrics.lagging.lostTimeInjuryCount === undefined) {
+      reportData.metrics.lagging.lostTimeInjuryCount = 0;
+    }
+    
     const token = localStorage.getItem('token');
     
     const headers = {
@@ -25,12 +30,44 @@ export const submitReport = async (reportData) => {
       throw new Error(`Failed to submit report: ${response.status} ${response.statusText}`);
     }
     
+    // Clear metrics cache
+    localStorage.removeItem('metricsSummaryCache');
+    localStorage.removeItem('reportsCache');
+    
     return await response.json();
   } catch (error) {
     console.error('Error submitting report:', error);
     throw error;
   }
 };
+
+/**
+ * Process report data to ensure LTI field is included
+ */
+function processReportData(report) {
+  // Make a copy to avoid modifying original data
+  const processedReport = { ...report };
+  
+  // Ensure metrics exists
+  if (!processedReport.metrics) {
+    processedReport.metrics = {};
+  }
+  
+  // Ensure lagging metrics exists and includes lostTimeInjuryCount
+  if (!processedReport.metrics.lagging) {
+    processedReport.metrics.lagging = {
+      incidentCount: processedReport.metrics.totalIncidents || 0,
+      nearMissCount: processedReport.metrics.totalNearMisses || 0,
+      firstAidCount: processedReport.metrics.firstAidCount || 0,
+      medicalTreatmentCount: processedReport.metrics.medicalTreatmentCount || 0,
+      lostTimeInjuryCount: 0
+    };
+  } else if (processedReport.metrics.lagging.lostTimeInjuryCount === undefined) {
+    processedReport.metrics.lagging.lostTimeInjuryCount = 0;
+  }
+  
+  return processedReport;
+}
 
 /**
  * Fetch all reports from the server
@@ -49,7 +86,7 @@ export const fetchReports = async () => {
       
       if (cacheAge < maxCacheAge) {
         console.log(`Using cached reports (age: ${Math.round(cacheAge/1000)}s, count: ${data.length})`);
-        return data;
+        return data.map(processReportData);
       }
     }
     
@@ -77,16 +114,19 @@ export const fetchReports = async () => {
 
     const data = await res.json();
     
+    // Process the data to ensure LTI is included
+    const processedData = data.map(processReportData);
+    
     // Cache the results
     localStorage.setItem(cacheKey, JSON.stringify({
-      data,
+      data: processedData,
       timestamp: Date.now()
     }));
     
-    console.log(`Fetched ${data.length} reports from API`);
+    console.log(`Fetched ${processedData.length} reports from API`);
     
     // For empty arrays, return default placeholder data
-    if (!data || data.length === 0) {
+    if (!processedData || processedData.length === 0) {
       console.warn('No reports returned from API, using placeholder data');
       return [
         {
@@ -99,7 +139,8 @@ export const fetchReports = async () => {
               incidentCount: 0,
               nearMissCount: 0,
               firstAidCount: 0,
-              medicalTreatmentCount: 0
+              medicalTreatmentCount: 0,
+              lostTimeInjuryCount: 0
             },
             leading: {
               trainingCompleted: 0,
@@ -133,7 +174,7 @@ export const fetchReports = async () => {
       ];
     }
 
-    return data;
+    return processedData;
   } catch (error) {
     console.error('Error in fetchReports:', error);
     
@@ -145,14 +186,12 @@ export const fetchReports = async () => {
       if (cachedData) {
         console.log('Error occurred, using expired reports cache as fallback');
         const { data } = JSON.parse(cachedData);
-        return data;
+        return data.map(processReportData);
       }
     } catch (cacheError) {
       console.error('Could not retrieve reports cache:', cacheError);
     }
 
-    
-    
     // Return mock data to prevent UI breaking
     return [
       {
@@ -165,7 +204,8 @@ export const fetchReports = async () => {
             incidentCount: 0,
             nearMissCount: 0,
             firstAidCount: 0,
-            medicalTreatmentCount: 0
+            medicalTreatmentCount: 0,
+            lostTimeInjuryCount: 0
           },
           leading: {
             trainingCompleted: 0,
@@ -438,6 +478,10 @@ export const fetchMetricsSummary = async () => {
       
       if (cacheAge < maxCacheAge) {
         console.log(`Using cached metrics summary (age: ${Math.round(cacheAge/1000)}s)`);
+        // Ensure cached data has the LTI field
+        if (data.lagging && data.lagging.lostTimeInjuryCount === undefined) {
+          data.lagging.lostTimeInjuryCount = 0;
+        }
         return data;
       }
     }
@@ -463,13 +507,42 @@ export const fetchMetricsSummary = async () => {
     
     const data = await response.json();
     
-    // Cache the results
+    // Ensure the data structure is complete with all fields
+    const processedData = {
+      // Lagging indicators
+      totalIncidents: data.totalIncidents ?? 0,
+      totalNearMisses: data.totalNearMisses ?? 0,
+      firstAidCount: data.firstAidCount ?? 0,
+      medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
+      
+      // Leading indicators
+      trainingCompliance: data.trainingCompliance ?? 0,
+      riskScore: data.riskScore ?? 0,
+      
+      // Ensure proper structure for nested objects
+      lagging: {
+        incidentCount: data.lagging?.incidentCount ?? data.totalIncidents ?? 0,
+        nearMissCount: data.lagging?.nearMissCount ?? data.totalNearMisses ?? 0,
+        firstAidCount: data.lagging?.firstAidCount ?? data.firstAidCount ?? 0,
+        medicalTreatmentCount: data.lagging?.medicalTreatmentCount ?? data.medicalTreatmentCount ?? 0,
+        lostTimeInjuryCount: data.lagging?.lostTimeInjuryCount ?? 0
+      },
+      
+      leading: {
+        ...(data.leading || {}),
+        trainingCompleted: data.leading?.trainingCompleted ?? 0,
+        inspectionsCompleted: data.leading?.inspectionsCompleted ?? 0,
+        kpis: Array.isArray(data.leading?.kpis) ? data.leading.kpis : []
+      }
+    };
+    
+    // Cache the fetched data
     localStorage.setItem(cacheKey, JSON.stringify({
-      data,
+      data: processedData,
       timestamp: Date.now()
     }));
     
-    return data;
+    return processedData;
   } catch (error) {
     console.error('Error fetching metrics summary:', error);
     
@@ -481,6 +554,10 @@ export const fetchMetricsSummary = async () => {
       if (cachedData) {
         console.log('Error occurred, using expired cache as fallback');
         const { data } = JSON.parse(cachedData);
+        // Ensure cached data has the LTI field
+        if (data.lagging && data.lagging.lostTimeInjuryCount === undefined) {
+          data.lagging.lostTimeInjuryCount = 0;
+        }
         return data;
       }
     } catch (cacheError) {
@@ -488,41 +565,7 @@ export const fetchMetricsSummary = async () => {
     }
     
     // Return default metrics object as last resort fallback
-    return {
-      lagging: {
-        incidentCount: 0,
-        nearMissCount: 0,
-        firstAidCount: 0,
-        medicalTreatmentCount: 0
-      },
-      leading: {
-        trainingCompleted: 0,
-        inspectionsCompleted: 0,
-        kpis: [
-          { 
-            id: 'nearMissRate',
-            name: 'Near Miss Reporting Rate',
-            actual: 0,
-            target: 100,
-            unit: '%' 
-          },
-          { 
-            id: 'criticalRiskVerification',
-            name: 'Critical Risk Control Verification',
-            actual: 0,
-            target: 95,
-            unit: '%' 
-          },
-          { 
-            id: 'electricalSafetyCompliance',
-            name: 'Electrical Safety Compliance',
-            actual: 0,
-            target: 100,
-            unit: '%' 
-          },
-        ]
-      }
-    };
+    return createDefaultMetrics();
   }
 };
 
@@ -548,6 +591,10 @@ export const fetchCompanyMetrics = async (companyName) => {
       
       if (cacheAge < maxCacheAge) {
         console.log(`Using cached metrics for ${companyName} (age: ${Math.round(cacheAge/1000)}s)`);
+        // Ensure cached data has the LTI field
+        if (data.lagging && data.lagging.lostTimeInjuryCount === undefined) {
+          data.lagging.lostTimeInjuryCount = 0;
+        }
         return data;
       }
     }
@@ -609,11 +656,12 @@ export const fetchCompanyMetrics = async (companyName) => {
       riskScore: mostRecent.metrics?.riskScore ?? 0,
       
       // Extract nested structures
-      lagging: mostRecent.metrics?.lagging ?? {
-        incidentCount: mostRecent.metrics?.totalIncidents ?? 0,
-        nearMissCount: mostRecent.metrics?.totalNearMisses ?? 0,
-        firstAidCount: mostRecent.metrics?.firstAidCount ?? 0,
-        medicalTreatmentCount: mostRecent.metrics?.medicalTreatmentCount ?? 0
+      lagging: {
+        incidentCount: mostRecent.metrics?.lagging?.incidentCount ?? mostRecent.metrics?.totalIncidents ?? 0,
+        nearMissCount: mostRecent.metrics?.lagging?.nearMissCount ?? mostRecent.metrics?.totalNearMisses ?? 0,
+        firstAidCount: mostRecent.metrics?.lagging?.firstAidCount ?? mostRecent.metrics?.firstAidCount ?? 0,
+        medicalTreatmentCount: mostRecent.metrics?.lagging?.medicalTreatmentCount ?? mostRecent.metrics?.medicalTreatmentCount ?? 0,
+        lostTimeInjuryCount: mostRecent.metrics?.lagging?.lostTimeInjuryCount ?? 0
       },
       leading: {
         trainingCompleted: mostRecent.metrics?.leading?.trainingCompleted ?? 0,
@@ -710,7 +758,8 @@ function createDefaultMetrics() {
       incidentCount: 0,
       nearMissCount: 0,
       firstAidCount: 0,
-      medicalTreatmentCount: 0
+      medicalTreatmentCount: 0,
+      lostTimeInjuryCount: 0
     },
     leading: {
       trainingCompleted: 0,
