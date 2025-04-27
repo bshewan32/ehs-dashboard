@@ -38,11 +38,23 @@ export default function InspectionsPage() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Inspections</h1>
-        <Link to="/inspections/new">
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700">
-            + New Inspection
-          </button>
-        </Link>
+        <div className="space-x-4">
+          <Link to="/">
+            <button className="bg-purple-600 text-white px-4 py-2 rounded-xl shadow hover:bg-purple-700">
+              Dashboard
+            </button>
+          </Link>
+          <Link to="/reports">
+            <button className="bg-green-600 text-white px-4 py-2 rounded-xl shadow hover:bg-green-700">
+              Reports
+            </button>
+          </Link>
+          <Link to="/inspections/new">
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700">
+              + New Inspection
+            </button>
+          </Link>
+        </div>
       </div>
       
       {/* Stats Cards */}

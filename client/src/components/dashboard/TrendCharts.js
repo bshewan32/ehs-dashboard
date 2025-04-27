@@ -133,12 +133,32 @@ const TrendCharts = ({ onCompanyChange, selectedCompany, enableYearFilter = fals
 
       // Sort data chronologically if possible
       const sortedData = [...trendData].sort((a, b) => {
-        // Simple quarter comparison (Q1, Q2, etc)
-        if (a.name.startsWith('Q') && b.name.startsWith('Q')) {
-          return a.name.localeCompare(b.name);
+        // First compare years if they exist
+        const yearA = extractYearFromPeriod(a.name) || 0;
+        const yearB = extractYearFromPeriod(b.name) || 0;
+        
+        if (yearA !== yearB) {
+          return yearA - yearB;
         }
-        // Default to original order
-        return 0;
+        
+        // For quarters (Q1, Q2, etc)
+        if (a.name.startsWith('Q') && b.name.startsWith('Q')) {
+          const quarterA = parseInt(a.name.charAt(1)) || 0;
+          const quarterB = parseInt(b.name.charAt(1)) || 0;
+          return quarterA - quarterB;
+        }
+        
+        // For months (Jan, Feb, etc)
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthA = months.findIndex(m => a.name.startsWith(m));
+        const monthB = months.findIndex(m => b.name.startsWith(m));
+        
+        if (monthA !== -1 && monthB !== -1) {
+          return monthA - monthB;
+        }
+        
+        // Default to string comparison
+        return a.name.localeCompare(b.name);
       });
 
       setIncidentData(sortedData);
@@ -164,10 +184,32 @@ const TrendCharts = ({ onCompanyChange, selectedCompany, enableYearFilter = fals
 
       // Sort KPI data the same way
       const sortedKpiData = [...kpiTrend].sort((a, b) => {
-        if (a.name.startsWith('Q') && b.name.startsWith('Q')) {
-          return a.name.localeCompare(b.name);
+        // First compare years if they exist
+        const yearA = extractYearFromPeriod(a.name) || 0;
+        const yearB = extractYearFromPeriod(b.name) || 0;
+        
+        if (yearA !== yearB) {
+          return yearA - yearB;
         }
-        return 0;
+        
+        // For quarters (Q1, Q2, etc)
+        if (a.name.startsWith('Q') && b.name.startsWith('Q')) {
+          const quarterA = parseInt(a.name.charAt(1)) || 0;
+          const quarterB = parseInt(b.name.charAt(1)) || 0;
+          return quarterA - quarterB;
+        }
+        
+        // For months (Jan, Feb, etc)
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthA = months.findIndex(m => a.name.startsWith(m));
+        const monthB = months.findIndex(m => b.name.startsWith(m));
+        
+        if (monthA !== -1 && monthB !== -1) {
+          return monthA - monthB;
+        }
+        
+        // Default to string comparison
+        return a.name.localeCompare(b.name);
       });
 
       setKpiData(sortedKpiData);

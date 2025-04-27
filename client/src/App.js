@@ -7,15 +7,14 @@ import InspectionsPage from './pages/InspectionsPage.js';
 import InspectionFormPage from './components/forms/InspectionFormPage.js';
 import InspectionDetailsPage from './pages/InspectionDetailsPage';
 import ReportsPage from './pages/ReportsPage';
-import Navigation from './components/layout/Navigation.js';
 import TrainingPage from './pages/TrainingPage';
 
+// Navigation removed as per requirements to use top buttons instead
 
 function App() {
   return (
     <Router>
       <div className="min-h-screen bg-gray-100">
-        <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />

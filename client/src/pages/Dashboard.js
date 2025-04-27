@@ -100,7 +100,8 @@ export default function Dashboard() {
           incidentCount: data.totalIncidents ?? 0,
           nearMissCount: data.totalNearMisses ?? 0,
           firstAidCount: data.firstAidCount ?? 0,
-          medicalTreatmentCount: data.medicalTreatmentCount ?? 0
+          medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
+          lostTimeInjuryCount: data.lostTimeInjuryCount ?? 0
         }
       };
       
@@ -130,7 +131,8 @@ export default function Dashboard() {
             incidentCount: 0,
             nearMissCount: 0,
             firstAidCount: 0,
-            medicalTreatmentCount: 0
+            medicalTreatmentCount: 0,
+            lostTimeInjuryCount: 0
           },
           leading: {
             trainingCompleted: 0,

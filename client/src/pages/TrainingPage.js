@@ -55,8 +55,18 @@ const TrainingPage = () => {
         <h1 className="text-2xl font-bold text-gray-800">Training Dashboard</h1>
         <div className="space-x-4">
           <Link to="/">
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700">
-              Back to Main Dashboard
+            <button className="bg-purple-600 text-white px-4 py-2 rounded-xl shadow hover:bg-purple-700">
+              Dashboard
+            </button>
+          </Link>
+          <Link to="/reports">
+            <button className="bg-green-600 text-white px-4 py-2 rounded-xl shadow hover:bg-green-700">
+              Reports
+            </button>
+          </Link>
+          <Link to="/inspections">
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700">
+              Inspections
             </button>
           </Link>
         </div>
