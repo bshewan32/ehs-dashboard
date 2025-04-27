@@ -71,9 +71,9 @@ export default function Dashboard() {
       // Fetch training data first
       const trainingInfo = await fetchTrainingInfo();
       
-      // Use our API service instead of direct fetch
-      const data = await fetchMetricsSummary();
-      console.log('Fetched metrics:', data);
+      // Use our API service to fetch current year metrics
+      const data = await fetchMetricsSummary(true); // true = current year only
+      console.log('Fetched current year metrics:', data);
       setLastFetchTime(now);
       
       // Create a properly structured metrics object

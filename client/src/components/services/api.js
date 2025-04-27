@@ -465,10 +465,15 @@ export const updateFindingStatus = async (inspectionId, findingIndex, resolved) 
  * Fetch metrics summary from the server
  * With client-side caching
  */
-export const fetchMetricsSummary = async () => {
+export const fetchMetricsSummary = async (currentYearOnly = false) => {
   try {
-    // Check for cached metrics summary
-    const cacheKey = 'metricsSummaryCache';
+    // Determine which endpoint to use
+    const endpoint = currentYearOnly ? 
+      `${api_url}/api/reports/metrics/current-year` : 
+      `${api_url}/api/reports/metrics/summary`;
+    
+    // Use different cache keys for all-time vs current year
+    const cacheKey = currentYearOnly ? 'currentYearMetricsCache' : 'metricsSummaryCache';
     const cachedData = localStorage.getItem(cacheKey);
     
     if (cachedData) {
@@ -477,7 +482,7 @@ export const fetchMetricsSummary = async () => {
       const maxCacheAge = 10 * 60 * 1000; // 10 minutes
       
       if (cacheAge < maxCacheAge) {
-        console.log(`Using cached metrics summary (age: ${Math.round(cacheAge/1000)}s)`);
+        console.log(`Using cached metrics ${currentYearOnly ? 'for current year' : 'summary'} (age: ${Math.round(cacheAge/1000)}s)`);
         // Ensure cached data has the LTI field
         if (data.lagging && data.lagging.lostTimeInjuryCount === undefined) {
           data.lagging.lostTimeInjuryCount = 0;
@@ -486,7 +491,7 @@ export const fetchMetricsSummary = async () => {
       }
     }
     
-    console.log('Fetching fresh metrics summary from API');
+    console.log(`Fetching fresh metrics ${currentYearOnly ? 'for current year' : 'summary'} from API`);
     const token = localStorage.getItem('token');
     
     const headers = {
@@ -497,12 +502,12 @@ export const fetchMetricsSummary = async () => {
       headers.Authorization = `Bearer ${token}`;
     }
     
-    const response = await fetch(`${api_url}/api/reports/metrics/summary`, {
+    const response = await fetch(endpoint, {
       headers,
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch metrics summary: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch metrics: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
@@ -514,10 +519,15 @@ export const fetchMetricsSummary = async () => {
       totalNearMisses: data.totalNearMisses ?? 0,
       firstAidCount: data.firstAidCount ?? 0,
       medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
+      lostTimeInjuryCount: data.lostTimeInjuryCount ?? 0,
       
       // Leading indicators
       trainingCompliance: data.trainingCompliance ?? 0,
       riskScore: data.riskScore ?? 0,
+      
+      // Store whether this is current year data
+      isCurrentYear: currentYearOnly,
+      year: data.year,
       
       // Ensure proper structure for nested objects
       lagging: {
@@ -525,7 +535,7 @@ export const fetchMetricsSummary = async () => {
         nearMissCount: data.lagging?.nearMissCount ?? data.totalNearMisses ?? 0,
         firstAidCount: data.lagging?.firstAidCount ?? data.firstAidCount ?? 0,
         medicalTreatmentCount: data.lagging?.medicalTreatmentCount ?? data.medicalTreatmentCount ?? 0,
-        lostTimeInjuryCount: data.lagging?.lostTimeInjuryCount ?? 0
+        lostTimeInjuryCount: data.lagging?.lostTimeInjuryCount ?? data.lostTimeInjuryCount ?? 0
       },
       
       leading: {
@@ -544,11 +554,11 @@ export const fetchMetricsSummary = async () => {
     
     return processedData;
   } catch (error) {
-    console.error('Error fetching metrics summary:', error);
+    console.error(`Error fetching metrics ${currentYearOnly ? 'for current year' : 'summary'}:`, error);
     
     // Try to use cached data even if it's expired
     try {
-      const cacheKey = 'metricsSummaryCache';
+      const cacheKey = currentYearOnly ? 'currentYearMetricsCache' : 'metricsSummaryCache';
       const cachedData = localStorage.getItem(cacheKey);
       
       if (cachedData) {
@@ -565,7 +575,7 @@ export const fetchMetricsSummary = async () => {
     }
     
     // Return default metrics object as last resort fallback
-    return createDefaultMetrics();
+    return createDefaultMetrics(currentYearOnly);
   }
 };
 
@@ -746,14 +756,19 @@ function createDefaultKpis() {
 }
 
 // Helper function to create default metrics
-function createDefaultMetrics() {
+function createDefaultMetrics(isCurrentYear = false) {
+  const currentYear = new Date().getFullYear();
+  
   return {
     totalIncidents: 0,
     totalNearMisses: 0,
     firstAidCount: 0,
     medicalTreatmentCount: 0,
+    lostTimeInjuryCount: 0,
     trainingCompliance: 0,
     riskScore: 0,
+    isCurrentYear: isCurrentYear,
+    year: isCurrentYear ? currentYear : null,
     lagging: {
       incidentCount: 0,
       nearMissCount: 0,

@@ -55,9 +55,20 @@ const MetricsOverview = ({ metrics }) => {
   const trainingCompliance = localMetrics.trainingCompliance ?? 0;
   const inspectionsCompleted = localMetrics.leading?.inspectionsCompleted ?? 0;
 
+  // Determine if this is current year data
+  const isCurrentYear = localMetrics.isCurrentYear || false;
+  const year = localMetrics.year || new Date().getFullYear();
+
   return (
     <div className="p-4 bg-white rounded shadow">
-      <h2 className="text-xl font-semibold mb-4">Lagging & Leading Indicators</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold">Lagging & Leading Indicators</h2>
+        {isCurrentYear && (
+          <span className="text-sm text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded-full">
+            {year} Year-to-Date
+          </span>
+        )}
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div className="bg-red-50 p-3 rounded border border-red-200">
