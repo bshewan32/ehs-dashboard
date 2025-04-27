@@ -113,12 +113,12 @@ const MetricsOverview = ({ metrics }) => {
         <div className="bg-emerald-50 p-3 rounded border border-emerald-200">
           <h3 className="text-sm font-medium text-gray-500">Training Compliance</h3>
           <div className="flex items-end">
-            <p className="text-2xl font-bold text-emerald-700">{trainingCompliance}%</p>
+            <p className="text-2xl font-bold text-emerald-700">{parseFloat(trainingCompliance).toFixed(1)}%</p>
             <div className="ml-2 w-full max-w-[150px]">
               <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
                 <div 
                   className={`h-2.5 rounded-full ${trainingCompliance >= 90 ? 'bg-green-600' : trainingCompliance >= 70 ? 'bg-yellow-500' : 'bg-red-500'}`} 
-                  style={{ width: `${Math.min(100, trainingCompliance)}%` }}
+                  style={{ width: `${Math.min(100, parseFloat(trainingCompliance).toFixed(1))}%` }}
                 ></div>
               </div>
             </div>
