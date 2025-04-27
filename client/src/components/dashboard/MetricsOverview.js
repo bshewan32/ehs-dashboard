@@ -41,7 +41,14 @@ const MetricsOverview = ({ metrics }) => {
                         localMetrics.firstAidCount ?? 0;
   const medicalTreatmentCount = localMetrics.lagging?.medicalTreatmentCount ?? 
                                localMetrics.medicalTreatmentCount ?? 0;
-  const lostTimeInjuryCount = localMetrics.lagging?.lostTimeInjuryCount ?? 0;
+  const lostTimeInjuryCount = localMetrics.lagging?.lostTimeInjuryCount ?? localMetrics.lostTimeInjuryCount ?? 0;
+  
+  // Debug log to see the metrics structure
+  console.log('MetricsOverview - LTI values:', { 
+    fromLagging: localMetrics.lagging?.lostTimeInjuryCount,
+    fromTopLevel: localMetrics.lostTimeInjuryCount,
+    finalValue: lostTimeInjuryCount
+  });
   
   // Safely access leading indicators
   const trainingCompleted = localMetrics.leading?.trainingCompleted ?? 0;

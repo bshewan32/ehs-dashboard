@@ -83,6 +83,7 @@ export default function Dashboard() {
         totalNearMisses: data.totalNearMisses ?? 0,
         firstAidCount: data.firstAidCount ?? 0,
         medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
+        lostTimeInjuryCount: data.lagging?.lostTimeInjuryCount ?? data.lostTimeInjuryCount ?? 0,
         trainingCompliance: data.trainingCompliance ?? 0,
         riskScore: data.riskScore ?? 0,
         
@@ -110,6 +111,12 @@ export default function Dashboard() {
         processedMetrics = updateMetricsWithTrainingData(processedMetrics, trainingInfo);
       }
       
+      // Debug log the metrics 
+      console.log('Dashboard - processed metrics:', {
+        lostTimeInjuryCount: processedMetrics.lostTimeInjuryCount,
+        laggingLTI: processedMetrics.lagging?.lostTimeInjuryCount 
+      });
+      
       // Store processed metrics
       setMetrics(processedMetrics);
       setError(null);
@@ -125,6 +132,7 @@ export default function Dashboard() {
           totalNearMisses: 0,
           firstAidCount: 0,
           medicalTreatmentCount: 0,
+          lostTimeInjuryCount: 0,
           trainingCompliance: 0,
           riskScore: 0,
           lagging: {
@@ -204,7 +212,7 @@ export default function Dashboard() {
     <div id="dashboard-content" className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <div className="space-x-4">
+        <div className="space-x-3">
           <button
             onClick={exportToPDF}
             className="bg-green-600 text-white px-4 py-2 rounded-xl shadow hover:bg-green-700"
@@ -212,9 +220,19 @@ export default function Dashboard() {
           >
             {exporting ? 'Exporting...' : 'Export to PDF'}
           </button>
+          <Link to="/reports">
+            <button className="bg-teal-600 text-white px-4 py-2 rounded-xl shadow hover:bg-teal-700">
+              Reports Dashboard
+            </button>
+          </Link>
           <Link to="/training">
             <button className="bg-purple-600 text-white px-4 py-2 rounded-xl shadow hover:bg-purple-700">
               Training Dashboard
+            </button>
+          </Link>
+          <Link to="/inspections">
+            <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl shadow hover:bg-indigo-700">
+              Inspection Dashboard
             </button>
           </Link>
           <Link to="/report/new">
