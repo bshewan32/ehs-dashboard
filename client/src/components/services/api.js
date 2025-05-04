@@ -244,6 +244,26 @@ export const submitInspection = async (inspectionData) => {
   }
 };
 
+// Fetch inspection by ID
+export const fetchInspectionById = async (id) => {
+  try {
+    // For inspection details, we don't use the cache as we want the most up-to-date data
+    const response = await fetch(`${api_url}/api/inspections/${id}`, {
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Error fetching inspection ${id}:`, error);
+    throw error;
+  }
+};
+
 // Helper functions for default/fallback data
 function getDefaultMetrics() {
   return {
