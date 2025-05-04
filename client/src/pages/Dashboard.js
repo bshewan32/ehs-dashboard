@@ -4,9 +4,7 @@ import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
-import TrainingSummary from '../components/dashboard/TrainingSummary';
-import { fetchMetricsSummary } from '../components/services/api';
-import { fetchTrainingData, updateMetricsWithTrainingData } from '../components/services/trainingApi';
+import { fetchMetricsSummary, markDataChanged } from '../components/services/api';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -16,8 +14,7 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const [exporting, setExporting] = useState(false);
-  const [selectedCompany, setSelectedCompany] = useState(null);
-  const [trainingData, setTrainingData] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0); // Added to force re-renders
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -44,23 +41,11 @@ export default function Dashboard() {
     },
   ];
 
-  // Fetch training data
-  const fetchTrainingInfo = useCallback(async () => {
-    try {
-      const data = await fetchTrainingData();
-      setTrainingData(data);
-      return data;
-    } catch (error) {
-      console.error('Error fetching training data:', error);
-      return null;
-    }
-  }, []);
-
   // Modify your fetchMetrics function to not depend on metrics
-  const fetchMetrics = useCallback(async () => {
+  const fetchMetrics = useCallback(async (force = false) => {
     // Throttle API calls - only fetch if it's been at least 10 seconds
     const now = Date.now();
-    if (now - lastFetchTime < 10000) {
+    if (!force && now - lastFetchTime < 10000) {
       console.log('Skipping fetch - too soon');
       return; // Skip this fetch if we've fetched recently
     }
@@ -68,22 +53,18 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
-      // Fetch training data first
-      const trainingInfo = await fetchTrainingInfo();
-      
-      // Use our API service to fetch current year metrics
-      const data = await fetchMetricsSummary(true); // true = current year only
-      console.log('Fetched current year metrics:', data);
+      // Use our API service instead of direct fetch
+      const data = await fetchMetricsSummary(force);
+      console.log('Fetched metrics:', data);
       setLastFetchTime(now);
       
       // Create a properly structured metrics object
-      let processedMetrics = {
+      const processedMetrics = {
         // Ensure these properties exist with fallbacks
         totalIncidents: data.totalIncidents ?? 0,
         totalNearMisses: data.totalNearMisses ?? 0,
         firstAidCount: data.firstAidCount ?? 0,
         medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
-        lostTimeInjuryCount: data.lagging?.lostTimeInjuryCount ?? data.lostTimeInjuryCount ?? 0,
         trainingCompliance: data.trainingCompliance ?? 0,
         riskScore: data.riskScore ?? 0,
         
@@ -101,21 +82,9 @@ export default function Dashboard() {
           incidentCount: data.totalIncidents ?? 0,
           nearMissCount: data.totalNearMisses ?? 0,
           firstAidCount: data.firstAidCount ?? 0,
-          medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
-          lostTimeInjuryCount: data.lostTimeInjuryCount ?? 0
+          medicalTreatmentCount: data.medicalTreatmentCount ?? 0
         }
       };
-      
-      // Update metrics with training data if available
-      if (trainingInfo) {
-        processedMetrics = updateMetricsWithTrainingData(processedMetrics, trainingInfo);
-      }
-      
-      // Debug log the metrics 
-      console.log('Dashboard - processed metrics:', {
-        lostTimeInjuryCount: processedMetrics.lostTimeInjuryCount,
-        laggingLTI: processedMetrics.lagging?.lostTimeInjuryCount 
-      });
       
       // Store processed metrics
       setMetrics(processedMetrics);
@@ -132,15 +101,13 @@ export default function Dashboard() {
           totalNearMisses: 0,
           firstAidCount: 0,
           medicalTreatmentCount: 0,
-          lostTimeInjuryCount: 0,
           trainingCompliance: 0,
           riskScore: 0,
           lagging: {
             incidentCount: 0,
             nearMissCount: 0,
             firstAidCount: 0,
-            medicalTreatmentCount: 0,
-            lostTimeInjuryCount: 0
+            medicalTreatmentCount: 0
           },
           leading: {
             trainingCompleted: 0,
@@ -152,18 +119,30 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [lastFetchTime, defaultKpis, fetchTrainingInfo]); // Remove metrics from dependencies
+  }, [lastFetchTime, defaultKpis]); // Remove metrics from dependencies
 
   useEffect(() => {
     // Initial fetch
-    fetchMetrics();
+    fetchMetrics(true); // Force the initial fetch
     
     // Set up a controlled interval for refreshing data
-    const intervalId = setInterval(fetchMetrics, 30000);
+    const intervalId = setInterval(() => fetchMetrics(), 30000);
     
     // Clean up interval on unmount
     return () => clearInterval(intervalId);
-  }, [fetchMetrics]);
+  }, [fetchMetrics, refreshKey]); // Added refreshKey to dependencies
+
+  // Function to manually refresh the dashboard
+  const handleRefresh = () => {
+    // Mark data as changed in the API service
+    markDataChanged();
+    
+    // Force fetch metrics
+    fetchMetrics(true);
+    
+    // Increment the refresh key to force component updates
+    setRefreshKey(prev => prev + 1);
+  };
 
   const exportToPDF = async () => {
     const dashboardElement = document.getElementById('dashboard-content');
@@ -202,17 +181,22 @@ export default function Dashboard() {
       setExporting(false);
     }
   };
-  
-  // Handler for company filter changes from TrendCharts
-  const handleCompanyChange = (company) => {
-    setSelectedCompany(company);
-  };
 
   return (
     <div id="dashboard-content" className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <div className="space-x-3">
+        <div className="space-x-4 flex items-center">
+          <button
+            onClick={handleRefresh}
+            className="bg-gray-200 text-gray-700 px-3 py-2 rounded-xl shadow hover:bg-gray-300"
+            title="Refresh dashboard data"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+          
           <button
             onClick={exportToPDF}
             className="bg-green-600 text-white px-4 py-2 rounded-xl shadow hover:bg-green-700"
@@ -220,21 +204,7 @@ export default function Dashboard() {
           >
             {exporting ? 'Exporting...' : 'Export to PDF'}
           </button>
-          <Link to="/reports">
-            <button className="bg-teal-600 text-white px-4 py-2 rounded-xl shadow hover:bg-teal-700">
-              Reports Dashboard
-            </button>
-          </Link>
-          <Link to="/training">
-            <button className="bg-purple-600 text-white px-4 py-2 rounded-xl shadow hover:bg-purple-700">
-              Training Dashboard
-            </button>
-          </Link>
-          <Link to="/inspections">
-            <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl shadow hover:bg-indigo-700">
-              Inspection Dashboard
-            </button>
-          </Link>
+          
           <Link to="/report/new">
             <button className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700">
               + Create New Report
@@ -255,33 +225,303 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Main metrics overview (full width) */}
-        <div className="md:col-span-2">
-          <MetricsOverview metrics={metrics} />
-        </div>
+      <div className="space-y-6">
+        {/* Fixed MetricsOverview component that uses direct API call for inspections count */}
+        <MetricsOverview metrics={metrics} key={`metrics-${refreshKey}`} />
         
-        {/* Two-column layout for KPIs and Training */}
-        <KPIOverview metrics={metrics} />
-        <TrainingSummary trainingData={trainingData} showPieChart={true} />
-        
-        {/* Full width for trend charts with embedded year filter */}
-        <div className="md:col-span-2">
-          <TrendCharts 
-            onCompanyChange={handleCompanyChange}
-            selectedCompany={selectedCompany}
-            enableYearFilter={true}  // Enable built-in year filter
-          />
-        </div>
-        
-        {/* AI panel at the bottom (full width) */}
-        <div className="md:col-span-2">
-          <AIPanel 
-            metrics={metrics} 
-            selectedCompany={selectedCompany}
-          />
-        </div>
+        {/* Pass the refresh key to other components to ensure they update when data changes */}
+        <KPIOverview metrics={metrics} key={`kpi-${refreshKey}`} />
+        <TrendCharts key={`trends-${refreshKey}`} />
+        <AIPanel metrics={metrics} key={`ai-${refreshKey}`} />
       </div>
     </div>
   );
 }
+
+// import React, { useEffect, useState, useCallback } from 'react';
+// import { Link } from 'react-router-dom';
+// import MetricsOverview from '../components/dashboard/MetricsOverview';
+// import KPIOverview from '../components/dashboard/KPIOverview';
+// import AIPanel from '../components/dashboard/AIPanel';
+// import TrendCharts from '../components/dashboard/TrendCharts';
+// import TrainingSummary from '../components/dashboard/TrainingSummary';
+// import { fetchMetricsSummary } from '../components/services/api';
+// import { fetchTrainingData, updateMetricsWithTrainingData } from '../components/services/trainingApi';
+// import jsPDF from 'jspdf';
+// import html2canvas from 'html2canvas';
+
+// export default function Dashboard() {
+//   const [metrics, setMetrics] = useState(null);
+//   const [loading, setLoading] = useState(true);
+//   const [error, setError] = useState(null);
+//   const [lastFetchTime, setLastFetchTime] = useState(0);
+//   const [exporting, setExporting] = useState(false);
+//   const [selectedCompany, setSelectedCompany] = useState(null);
+//   const [trainingData, setTrainingData] = useState(null);
+
+//   // Setup default KPIs to ensure they're always available
+//   const defaultKpis = [
+//     { 
+//       id: 'nearMissRate',
+//       name: 'Near Miss Reporting Rate',
+//       actual: 0,
+//       target: 100,
+//       unit: '%' 
+//     },
+//     { 
+//       id: 'criticalRiskVerification',
+//       name: 'Critical Risk Control Verification',
+//       actual: 0,
+//       target: 95,
+//       unit: '%' 
+//     },
+//     { 
+//       id: 'electricalSafetyCompliance',
+//       name: 'Electrical Safety Compliance',
+//       actual: 0,
+//       target: 100,
+//       unit: '%' 
+//     },
+//   ];
+
+//   // Fetch training data
+//   const fetchTrainingInfo = useCallback(async () => {
+//     try {
+//       const data = await fetchTrainingData();
+//       setTrainingData(data);
+//       return data;
+//     } catch (error) {
+//       console.error('Error fetching training data:', error);
+//       return null;
+//     }
+//   }, []);
+
+//   // Modify your fetchMetrics function to not depend on metrics
+//   const fetchMetrics = useCallback(async () => {
+//     // Throttle API calls - only fetch if it's been at least 10 seconds
+//     const now = Date.now();
+//     if (now - lastFetchTime < 10000) {
+//       console.log('Skipping fetch - too soon');
+//       return; // Skip this fetch if we've fetched recently
+//     }
+
+//     try {
+//       setLoading(true);
+      
+//       // Fetch training data first
+//       const trainingInfo = await fetchTrainingInfo();
+      
+//       // Use our API service to fetch current year metrics
+//       const data = await fetchMetricsSummary(true); // true = current year only
+//       console.log('Fetched current year metrics:', data);
+//       setLastFetchTime(now);
+      
+//       // Create a properly structured metrics object
+//       let processedMetrics = {
+//         // Ensure these properties exist with fallbacks
+//         totalIncidents: data.totalIncidents ?? 0,
+//         totalNearMisses: data.totalNearMisses ?? 0,
+//         firstAidCount: data.firstAidCount ?? 0,
+//         medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
+//         lostTimeInjuryCount: data.lagging?.lostTimeInjuryCount ?? data.lostTimeInjuryCount ?? 0,
+//         trainingCompliance: data.trainingCompliance ?? 0,
+//         riskScore: data.riskScore ?? 0,
+        
+//         // Ensure the leading object exists
+//         leading: {
+//           ...data.leading,
+//           // Either use existing KPIs or defaults
+//           kpis: (data.leading?.kpis && data.leading.kpis.length > 0) 
+//             ? data.leading.kpis 
+//             : defaultKpis
+//         },
+        
+//         // Create lagging metrics if they don't exist
+//         lagging: data.lagging || {
+//           incidentCount: data.totalIncidents ?? 0,
+//           nearMissCount: data.totalNearMisses ?? 0,
+//           firstAidCount: data.firstAidCount ?? 0,
+//           medicalTreatmentCount: data.medicalTreatmentCount ?? 0,
+//           lostTimeInjuryCount: data.lostTimeInjuryCount ?? 0
+//         }
+//       };
+      
+//       // Update metrics with training data if available
+//       if (trainingInfo) {
+//         processedMetrics = updateMetricsWithTrainingData(processedMetrics, trainingInfo);
+//       }
+      
+//       // Debug log the metrics 
+//       console.log('Dashboard - processed metrics:', {
+//         lostTimeInjuryCount: processedMetrics.lostTimeInjuryCount,
+//         laggingLTI: processedMetrics.lagging?.lostTimeInjuryCount 
+//       });
+      
+//       // Store processed metrics
+//       setMetrics(processedMetrics);
+//       setError(null);
+//     } catch (error) {
+//       console.error('Error fetching metrics:', error);
+//       setError(error.message);
+      
+//       // Only set fallback metrics if we don't already have metrics
+//       setMetrics(currentMetrics => {
+//         if (currentMetrics) return currentMetrics;
+//         return {
+//           totalIncidents: 0,
+//           totalNearMisses: 0,
+//           firstAidCount: 0,
+//           medicalTreatmentCount: 0,
+//           lostTimeInjuryCount: 0,
+//           trainingCompliance: 0,
+//           riskScore: 0,
+//           lagging: {
+//             incidentCount: 0,
+//             nearMissCount: 0,
+//             firstAidCount: 0,
+//             medicalTreatmentCount: 0,
+//             lostTimeInjuryCount: 0
+//           },
+//           leading: {
+//             trainingCompleted: 0,
+//             inspectionsCompleted: 0,
+//             kpis: defaultKpis
+//           }
+//         };
+//       });
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, [lastFetchTime, defaultKpis, fetchTrainingInfo]); // Remove metrics from dependencies
+
+//   useEffect(() => {
+//     // Initial fetch
+//     fetchMetrics();
+    
+//     // Set up a controlled interval for refreshing data
+//     const intervalId = setInterval(fetchMetrics, 30000);
+    
+//     // Clean up interval on unmount
+//     return () => clearInterval(intervalId);
+//   }, [fetchMetrics]);
+
+//   const exportToPDF = async () => {
+//     const dashboardElement = document.getElementById('dashboard-content');
+//     if (!dashboardElement) return;
+    
+//     try {
+//       // Show loading indicator
+//       setExporting(true);
+      
+//       // Create a PDF document
+//       const pdf = new jsPDF('p', 'mm', 'a4');
+      
+//       // Create a canvas from the dashboard
+//       const canvas = await html2canvas(dashboardElement, {
+//         scale: 2, // Higher scale for better quality
+//         useCORS: true,
+//         logging: false
+//       });
+      
+//       // Add title
+//       pdf.setFontSize(16);
+//       pdf.text('EHS Dashboard Report', 105, 15, { align: 'center' });
+//       pdf.setFontSize(12);
+//       pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 22, { align: 'center' });
+      
+//       // Add canvas image to PDF
+//       const imgData = canvas.toDataURL('image/png');
+//       pdf.addImage(imgData, 'PNG', 10, 30, 190, 0);
+      
+//       // Download the PDF
+//       pdf.save(`EHS_Dashboard_${new Date().toISOString().split('T')[0]}.pdf`);
+//     } catch (error) {
+//       console.error('Error exporting dashboard to PDF:', error);
+//       alert('Failed to export dashboard to PDF');
+//     } finally {
+//       setExporting(false);
+//     }
+//   };
+  
+//   // Handler for company filter changes from TrendCharts
+//   const handleCompanyChange = (company) => {
+//     setSelectedCompany(company);
+//   };
+
+//   return (
+//     <div id="dashboard-content" className="space-y-6 p-6">
+//       <div className="flex justify-between items-center">
+//         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+//         <div className="space-x-3">
+//           <button
+//             onClick={exportToPDF}
+//             className="bg-green-600 text-white px-4 py-2 rounded-xl shadow hover:bg-green-700"
+//             disabled={exporting}
+//           >
+//             {exporting ? 'Exporting...' : 'Export to PDF'}
+//           </button>
+//           <Link to="/reports">
+//             <button className="bg-teal-600 text-white px-4 py-2 rounded-xl shadow hover:bg-teal-700">
+//               Reports Dashboard
+//             </button>
+//           </Link>
+//           <Link to="/training">
+//             <button className="bg-purple-600 text-white px-4 py-2 rounded-xl shadow hover:bg-purple-700">
+//               Training Dashboard
+//             </button>
+//           </Link>
+//           <Link to="/inspections">
+//             <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl shadow hover:bg-indigo-700">
+//               Inspection Dashboard
+//             </button>
+//           </Link>
+//           <Link to="/report/new">
+//             <button className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700">
+//               + Create New Report
+//             </button>
+//           </Link>
+//         </div>
+//       </div>
+
+//       {loading && !metrics ? (
+//         <div className="text-center p-10 text-gray-500">
+//           <div className="text-xl">Loading dashboard data...</div>
+//         </div>
+//       ) : error && !metrics ? (
+//         <div className="bg-red-50 border border-red-300 text-red-700 p-4 rounded shadow mb-4">
+//           <div className="font-bold">Error loading dashboard data</div>
+//           <div>{error}</div>
+//           <div className="mt-2">Using fallback data for display purposes.</div>
+//         </div>
+//       ) : null}
+
+//       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+//         {/* Main metrics overview (full width) */}
+//         <div className="md:col-span-2">
+//           <MetricsOverview metrics={metrics} />
+//         </div>
+        
+//         {/* Two-column layout for KPIs and Training */}
+//         <KPIOverview metrics={metrics} />
+//         <TrainingSummary trainingData={trainingData} showPieChart={true} />
+        
+//         {/* Full width for trend charts with embedded year filter */}
+//         <div className="md:col-span-2">
+//           <TrendCharts 
+//             onCompanyChange={handleCompanyChange}
+//             selectedCompany={selectedCompany}
+//             enableYearFilter={true}  // Enable built-in year filter
+//           />
+//         </div>
+        
+//         {/* AI panel at the bottom (full width) */}
+//         <div className="md:col-span-2">
+//           <AIPanel 
+//             metrics={metrics} 
+//             selectedCompany={selectedCompany}
+//           />
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
