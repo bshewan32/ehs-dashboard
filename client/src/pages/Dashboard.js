@@ -18,39 +18,6 @@ export default function Dashboard() {
   const [exporting, setExporting] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('current'); // 'current', 'ytd', 'lastYear'
   
-  // Common data fetch function that loads both metrics and reports
-  const fetchDashboardData = useCallback(async () => {
-    // Throttle API calls - only fetch if it's been at least 15 seconds
-    const now = Date.now();
-    if (now - lastFetchTime < 15000) {
-      console.log('Skipping fetch - too soon');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      // Fetch both the latest metrics summary and all reports
-      const [metricsData, reportsData] = await Promise.all([
-        fetchMetricsSummary(true), // Force refresh
-        fetchReports(true) // Force refresh
-      ]);
-      
-      setReports(reportsData || []);
-      setLastFetchTime(now);
-      
-      // Process metrics data for dashboard display
-      const processedMetrics = processMetricsForDashboard(metricsData, reportsData);
-      setMetrics(processedMetrics);
-      setError(null);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError('Failed to load dashboard data. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  }, [lastFetchTime, processMetricsForDashboard]);
-
   // Process metrics data based on the selected period
   const processMetricsForDashboard = useCallback((metricsData, reportsData) => {
     if (!metricsData) {
@@ -132,6 +99,39 @@ export default function Dashboard() {
     
     return baseMetrics;
   }, [selectedPeriod]);
+
+  // Common data fetch function that loads both metrics and reports
+  const fetchDashboardData = useCallback(async () => {
+    // Throttle API calls - only fetch if it's been at least 15 seconds
+    const now = Date.now();
+    if (now - lastFetchTime < 15000) {
+      console.log('Skipping fetch - too soon');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Fetch both the latest metrics summary and all reports
+      const [metricsData, reportsData] = await Promise.all([
+        fetchMetricsSummary(true), // Force refresh
+        fetchReports(true) // Force refresh
+      ]);
+      
+      setReports(reportsData || []);
+      setLastFetchTime(now);
+      
+      // Process metrics data for dashboard display
+      const processedMetrics = processMetricsForDashboard(metricsData, reportsData);
+      setMetrics(processedMetrics);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setError('Failed to load dashboard data. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  }, [lastFetchTime, processMetricsForDashboard]);
   
   // Calculate metrics for a specific time period
   const calculatePeriodMetrics = (periodReports, periodType, periodLabel) => {
