@@ -1,4 +1,6 @@
-// Improved api.js with caching and request throttling
+// client/src/components/services/api.js
+// Improved api.js with better caching, error handling, and data consistency
+
 const api_url = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 // Cache for API responses
@@ -17,10 +19,10 @@ const apiCache = {
   }
 };
 
-// Cache expiration time in milliseconds
-const CACHE_EXPIRATION = 30000; // 30 seconds 
+// Cache expiration time in milliseconds (30 seconds)
+const CACHE_EXPIRATION = 30000;
 
-// Flag to track if data has changed due to user actions
+// Track if data has changed (e.g. after a form submission)
 let dataHasChanged = false;
 
 // Helper function to check if cache is valid
@@ -29,7 +31,7 @@ const isCacheValid = (cacheKey) => {
   if (!cache.data) return false;
   
   const now = Date.now();
-  return !dataHasChanged && (now - cache.timestamp) < CACHE_EXPIRATION;
+  return (now - cache.timestamp) < CACHE_EXPIRATION;
 };
 
 // Helper to set up headers with optional auth
@@ -47,15 +49,10 @@ const getHeaders = () => {
   return headers;
 };
 
-// Mark data as changed - called after form submissions
+// Mark data as changed - to be called after successful POST/PUT operations
 export const markDataChanged = () => {
-  console.log("API: Marking data as changed - will force refresh on next fetch");
+  console.log('Marking data as changed');
   dataHasChanged = true;
-  
-  // Clear all caches when data changes
-  apiCache.reports.data = null;
-  apiCache.metricsSummary.data = null;
-  apiCache.inspections.data = null;
 };
 
 // Submit report function (no caching for POST requests)
@@ -68,10 +65,11 @@ export const submitReport = async (reportData) => {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to submit report: ${response.status} ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Failed to submit report: ${response.status} ${response.statusText}`);
     }
     
-    // Mark data as changed after submission
+    // Clear the cache and mark data as changed after successful submission
     markDataChanged();
     
     return await response.json();
@@ -81,16 +79,16 @@ export const submitReport = async (reportData) => {
   }
 };
 
-// Fetch reports with caching
+// Fetch reports with caching and consistent error handling
 export const fetchReports = async (forceRefresh = false) => {
   try {
     // Return cached data if valid and not forcing refresh
-    if (!forceRefresh && isCacheValid('reports')) {
+    if (!forceRefresh && !dataHasChanged && isCacheValid('reports')) {
       console.log('Using cached reports data');
       return apiCache.reports.data;
     }
     
-    // Reset the data changed flag since we're about to fetch fresh data
+    // Reset the data changed flag
     dataHasChanged = false;
 
     const res = await fetch(`${api_url}/api/reports`, {
@@ -106,18 +104,48 @@ export const fetchReports = async (forceRefresh = false) => {
     
     // Check for empty data and provide default if needed
     if (!data || data.length === 0) {
-      console.warn('No reports returned from API, using placeholder data');
-      const placeholderData = getPlaceholderReports();
-      // Cache the placeholder data
-      apiCache.reports.data = placeholderData;
+      console.warn('No reports returned from API');
+      apiCache.reports.data = [];
       apiCache.reports.timestamp = Date.now();
-      return placeholderData;
+      return [];
     }
 
-    // Cache the fetched data
-    apiCache.reports.data = data;
+    // Normalize the data structure
+    const normalizedData = data.map(report => {
+      // Ensure the metrics structure is consistent
+      const metrics = report.metrics || {};
+      
+      // Ensure lagging and leading structures exist
+      if (!metrics.lagging) {
+        metrics.lagging = {
+          incidentCount: metrics.totalIncidents || 0,
+          nearMissCount: metrics.totalNearMisses || 0,
+          firstAidCount: metrics.firstAidCount || 0, 
+          medicalTreatmentCount: metrics.medicalTreatmentCount || 0,
+          lostTimeInjuryCount: 0
+        };
+      }
+      
+      if (!metrics.leading) {
+        metrics.leading = {
+          trainingCompleted: 0,
+          inspectionsCompleted: 0,
+          kpis: metrics.kpis || []
+        };
+      } else if (!metrics.leading.kpis) {
+        metrics.leading.kpis = metrics.kpis || [];
+      }
+      
+      return {
+        ...report,
+        metrics
+      };
+    });
+    
+    // Cache the normalized data
+    apiCache.reports.data = normalizedData;
     apiCache.reports.timestamp = Date.now();
-    return data;
+    return normalizedData;
   } catch (error) {
     console.error('Error in fetchReports:', error);
     
@@ -127,11 +155,8 @@ export const fetchReports = async (forceRefresh = false) => {
       return apiCache.reports.data;
     }
     
-    // Return fallback data if no cache available
-    const fallbackData = getFallbackReports();
-    apiCache.reports.data = fallbackData;
-    apiCache.reports.timestamp = Date.now();
-    return fallbackData;
+    // Return empty array as fallback
+    return [];
   }
 };
 
@@ -139,19 +164,15 @@ export const fetchReports = async (forceRefresh = false) => {
 export const fetchMetricsSummary = async (forceRefresh = false) => {
   try {
     // Return cached data if valid and not forcing refresh
-    if (!forceRefresh && isCacheValid('metricsSummary')) {
+    if (!forceRefresh && !dataHasChanged && isCacheValid('metricsSummary')) {
       console.log('Using cached metrics summary data');
       return apiCache.metricsSummary.data;
     }
     
-    // Reset the data changed flag since we're about to fetch fresh data
+    // Reset the data changed flag
     dataHasChanged = false;
     
-    // Get the current year for YTD metrics
-    const currentYear = new Date().getFullYear();
-    
-    // Add the year parameter to get YTD data for the current year
-    const response = await fetch(`${api_url}/api/reports/metrics/summary?year=${currentYear}`, {
+    const response = await fetch(`${api_url}/api/reports/metrics/summary`, {
       headers: getHeaders(),
     });
     
@@ -160,12 +181,14 @@ export const fetchMetricsSummary = async (forceRefresh = false) => {
     }
     
     const data = await response.json();
-    console.log(`Fetched fresh YTD metrics summary data for ${currentYear}`);
     
-    // Cache the fetched data
-    apiCache.metricsSummary.data = data;
+    // Normalize the metrics structure to ensure consistency
+    const normalizedMetrics = normalizeMetricsStructure(data);
+    
+    // Cache the normalized data
+    apiCache.metricsSummary.data = normalizedMetrics;
     apiCache.metricsSummary.timestamp = Date.now();
-    return data;
+    return normalizedMetrics;
   } catch (error) {
     console.error('Error fetching metrics summary:', error);
     
@@ -176,26 +199,74 @@ export const fetchMetricsSummary = async (forceRefresh = false) => {
     }
     
     // Return default metrics object as fallback
-    const fallbackData = getDefaultMetrics();
-    apiCache.metricsSummary.data = fallbackData;
-    apiCache.metricsSummary.timestamp = Date.now();
-    return fallbackData;
+    const defaultMetrics = getDefaultMetrics();
+    return defaultMetrics;
   }
 };
+
+// Normalize metrics structure for consistency
+function normalizeMetricsStructure(metrics) {
+  if (!metrics) return getDefaultMetrics();
+  
+  // Create a deep copy to avoid modifying the original object
+  const normalizedMetrics = JSON.parse(JSON.stringify(metrics));
+  
+  // Ensure lagging indicators structure exists
+  if (!normalizedMetrics.lagging) {
+    normalizedMetrics.lagging = {
+      incidentCount: normalizedMetrics.totalIncidents || 0,
+      nearMissCount: normalizedMetrics.totalNearMisses || 0,
+      firstAidCount: normalizedMetrics.firstAidCount || 0,
+      medicalTreatmentCount: normalizedMetrics.medicalTreatmentCount || 0,
+      lostTimeInjuryCount: 0
+    };
+  }
+  
+  // Ensure leading indicators structure exists
+  if (!normalizedMetrics.leading) {
+    normalizedMetrics.leading = {
+      trainingCompleted: 0,
+      inspectionsCompleted: 0,
+      kpis: normalizedMetrics.kpis || []
+    };
+  } else if (!normalizedMetrics.leading.kpis) {
+    // If leading exists but kpis doesn't, check if kpis exists at top level
+    normalizedMetrics.leading.kpis = normalizedMetrics.kpis || [];
+  }
+  
+  // If kpis exists at top level, make sure it's also in leading.kpis
+  if (Array.isArray(normalizedMetrics.kpis) && normalizedMetrics.kpis.length > 0) {
+    // Ensure leading.kpis exists and copy kpis into it if empty
+    if (!Array.isArray(normalizedMetrics.leading.kpis) || normalizedMetrics.leading.kpis.length === 0) {
+      normalizedMetrics.leading.kpis = [...normalizedMetrics.kpis];
+    }
+  }
+  
+  // Add any missing KPIs if there are none or add defaults if they're missing
+  if (!normalizedMetrics.leading.kpis || normalizedMetrics.leading.kpis.length === 0) {
+    normalizedMetrics.leading.kpis = getDefaultKPIs();
+  }
+  
+  // Clean up properties that are now duplicates
+  delete normalizedMetrics.kpis;
+  delete normalizedMetrics.totalIncidents;
+  delete normalizedMetrics.totalNearMisses;
+  
+  return normalizedMetrics;
+}
 
 // Fetch inspections with caching
 export const fetchInspections = async (forceRefresh = false) => {
   try {
     // Return cached data if valid and not forcing refresh
-    if (!forceRefresh && isCacheValid('inspections')) {
+    if (!forceRefresh && !dataHasChanged && isCacheValid('inspections')) {
       console.log('Using cached inspections data');
       return apiCache.inspections.data;
     }
     
-    // Reset the data changed flag since we're about to fetch fresh data
+    // Reset the data changed flag
     dataHasChanged = false;
 
-    console.log('Fetching fresh inspections data from API');
     const response = await fetch(`${api_url}/api/inspections`, {
       headers: getHeaders(),
     });
@@ -205,7 +276,6 @@ export const fetchInspections = async (forceRefresh = false) => {
     }
     
     const data = await response.json();
-    console.log(`Fetched ${data.length} inspections from API`);
     
     // Cache the fetched data
     apiCache.inspections.data = data;
@@ -216,7 +286,6 @@ export const fetchInspections = async (forceRefresh = false) => {
     
     // If we have cached data, return it in case of error
     if (apiCache.inspections.data) {
-      console.log('Returning cached inspections after fetch error');
       return apiCache.inspections.data;
     }
     
@@ -238,7 +307,7 @@ export const submitInspection = async (inspectionData) => {
       throw new Error(`Failed to submit inspection: ${response.status} ${response.statusText}`);
     }
     
-    // Mark data as changed to force refresh on next fetch
+    // Mark data as changed after successful submission
     markDataChanged();
     
     return await response.json();
@@ -248,111 +317,49 @@ export const submitInspection = async (inspectionData) => {
   }
 };
 
-// Fetch inspection by ID
-export const fetchInspectionById = async (id) => {
-  try {
-    // For inspection details, we don't use the cache as we want the most up-to-date data
-    const response = await fetch(`${api_url}/api/inspections/${id}`, {
-      headers: getHeaders(),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch inspection: ${response.status} ${response.statusText}`);
+// Helper function to get default KPIs
+function getDefaultKPIs() {
+  return [
+    { 
+      id: 'nearMissRate',
+      name: 'Near Miss Reporting Rate',
+      actual: 0,
+      target: 100,
+      unit: '%' 
+    },
+    { 
+      id: 'criticalRiskVerification',
+      name: 'Critical Risk Control Verification',
+      actual: 0,
+      target: 95,
+      unit: '%' 
+    },
+    { 
+      id: 'electricalSafetyCompliance',
+      name: 'Electrical Safety Compliance',
+      actual: 0,
+      target: 100,
+      unit: '%' 
     }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error(`Error fetching inspection ${id}:`, error);
-    throw error;
-  }
-};
+  ];
+}
 
-// Update finding status (mark as resolved/unresolved)
-export const updateFindingStatus = async (inspectionId, findingIndex, resolved) => {
-  try {
-    const response = await fetch(`${api_url}/api/inspections/${inspectionId}/findings/${findingIndex}`, {
-      method: 'PATCH',
-      headers: getHeaders(),
-      body: JSON.stringify({ resolved }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to update finding status: ${response.status} ${response.statusText}`);
-    }
-    
-    // Mark data as changed to force refresh on next fetch
-    markDataChanged();
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error updating finding status:', error);
-    throw error;
-  }
-};
-
-
-// Helper functions for default/fallback data
+// Helper function for default metrics
 function getDefaultMetrics() {
   return {
     lagging: {
       incidentCount: 0,
       nearMissCount: 0,
       firstAidCount: 0,
-      medicalTreatmentCount: 0
+      medicalTreatmentCount: 0,
+      lostTimeInjuryCount: 0
     },
     leading: {
       trainingCompleted: 0,
       inspectionsCompleted: 0,
-      kpis: [
-        { 
-          id: 'nearMissRate',
-          name: 'Near Miss Reporting Rate',
-          actual: 0,
-          target: 100,
-          unit: '%' 
-        },
-        { 
-          id: 'criticalRiskVerification',
-          name: 'Critical Risk Control Verification',
-          actual: 0,
-          target: 95,
-          unit: '%' 
-        },
-        { 
-          id: 'electricalSafetyCompliance',
-          name: 'Electrical Safety Compliance',
-          actual: 0,
-          target: 100,
-          unit: '%' 
-        },
-      ]
+      kpis: getDefaultKPIs()
     },
     trainingCompliance: 0,
     riskScore: 0
   };
-}
-
-function getPlaceholderReports() {
-  return [
-    {
-      _id: 'placeholder1',
-      companyName: 'Example Corp',
-      reportPeriod: 'Q1',
-      reportType: 'Monthly',
-      metrics: getDefaultMetrics()
-    }
-  ];
-}
-
-function getFallbackReports() {
-  return [
-    {
-      _id: 'error1',
-      companyName: 'Data Unavailable',
-      reportPeriod: 'Current',
-      reportType: 'Error',
-      metrics: getDefaultMetrics()
-    }
-  ];
 }
