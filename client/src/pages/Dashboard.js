@@ -74,7 +74,7 @@ export default function Dashboard() {
       
       // Use our API service to fetch current year metrics
       const data = await fetchMetricsSummary(force);
-      console.log('Fetched metrics:', data);
+      console.log('Raw metrics summary response:', data);
       setLastFetchTime(now);
       
       // Create a properly structured metrics object
@@ -106,18 +106,17 @@ export default function Dashboard() {
           lostTimeInjuryCount: data.lostTimeInjuryCount ?? 0
         }
       };
-      
+
       // Update metrics with training data if available
       if (trainingInfo) {
         processedMetrics = updateMetricsWithTrainingData(processedMetrics, trainingInfo);
       }
-      
-      // Debug log the metrics 
-      console.log('Dashboard - processed metrics:', {
-        lostTimeInjuryCount: processedMetrics.lostTimeInjuryCount,
-        laggingLTI: processedMetrics.lagging?.lostTimeInjuryCount 
-      });
-      
+
+      // Debug log processed metrics summary
+      console.log('Processed metrics summary:', processedMetrics);
+      // Debug log the metrics (detailed)
+      console.log('Dashboard - processed metrics (detailed):', processedMetrics);
+
       // Store processed metrics
       setMetrics(processedMetrics);
       setError(null);

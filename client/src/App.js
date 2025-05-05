@@ -9,7 +9,7 @@ import InspectionDetailsPage from './pages/InspectionDetailsPage';
 import ReportsPage from './pages/ReportsPage';
 import TrainingPage from './pages/TrainingPage';
 
-// Navigation removed as per requirements to use top buttons instead
+
 
 function App() {
   return (
