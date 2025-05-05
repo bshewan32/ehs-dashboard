@@ -287,6 +287,7 @@ export const updateFindingStatus = async (inspectionId, findingIndex, resolved) 
   }
 };
 
+
 // Helper functions for default/fallback data
 function getDefaultMetrics() {
   return {
@@ -351,5 +352,3 @@ function getFallbackReports() {
     }
   ];
 }
-
-// NOTE: Make sure all API functions are properly exported as 'export const'
