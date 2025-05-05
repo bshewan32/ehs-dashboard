@@ -16,6 +16,10 @@ const apiCache = {
   inspections: {
     data: null,
     timestamp: 0
+  },
+  inspectionDetails: {
+    // Will store individual inspection details by ID
+    // Format: { [inspectionId]: { data, timestamp } }
   }
 };
 
@@ -26,12 +30,22 @@ const CACHE_EXPIRATION = 30000;
 let dataHasChanged = false;
 
 // Helper function to check if cache is valid
-const isCacheValid = (cacheKey) => {
-  const cache = apiCache[cacheKey];
-  if (!cache.data) return false;
-  
-  const now = Date.now();
-  return (now - cache.timestamp) < CACHE_EXPIRATION;
+const isCacheValid = (cacheKey, id = null) => {
+  if (id) {
+    // For caches that are indexed by ID
+    const cache = apiCache[cacheKey][id];
+    if (!cache || !cache.data) return false;
+    
+    const now = Date.now();
+    return (now - cache.timestamp) < CACHE_EXPIRATION;
+  } else {
+    // For regular caches
+    const cache = apiCache[cacheKey];
+    if (!cache.data) return false;
+    
+    const now = Date.now();
+    return (now - cache.timestamp) < CACHE_EXPIRATION;
+  }
 };
 
 // Helper to set up headers with optional auth
@@ -157,6 +171,71 @@ export const fetchReports = async (forceRefresh = false) => {
     
     // Return empty array as fallback
     return [];
+  }
+};
+
+// Fetch specific report by ID
+export const fetchReportById = async (reportId, forceRefresh = false) => {
+  try {
+    if (!reportId) {
+      throw new Error('Report ID is required');
+    }
+    
+    // First try to find it in the reports cache if available
+    if (!forceRefresh && !dataHasChanged && isCacheValid('reports')) {
+      const cachedReports = apiCache.reports.data;
+      const cachedReport = cachedReports.find(report => report._id === reportId);
+      
+      if (cachedReport) {
+        console.log(`Using cached report data for ID: ${reportId}`);
+        return cachedReport;
+      }
+    }
+    
+    // If not found in cache or cache invalid, fetch directly
+    const response = await fetch(`${api_url}/api/reports/${reportId}`, {
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch report: ${response.status} ${response.statusText}`);
+    }
+    
+    const report = await response.json();
+    
+    // Normalize the data structure
+    const metrics = report.metrics || {};
+    
+    // Ensure lagging and leading structures exist
+    if (!metrics.lagging) {
+      metrics.lagging = {
+        incidentCount: metrics.totalIncidents || 0,
+        nearMissCount: metrics.totalNearMisses || 0,
+        firstAidCount: metrics.firstAidCount || 0,
+        medicalTreatmentCount: metrics.medicalTreatmentCount || 0,
+        lostTimeInjuryCount: 0
+      };
+    }
+    
+    if (!metrics.leading) {
+      metrics.leading = {
+        trainingCompleted: 0,
+        inspectionsCompleted: 0,
+        kpis: metrics.kpis || []
+      };
+    } else if (!metrics.leading.kpis) {
+      metrics.leading.kpis = metrics.kpis || [];
+    }
+    
+    const normalizedReport = {
+      ...report,
+      metrics
+    };
+    
+    return normalizedReport;
+  } catch (error) {
+    console.error(`Error fetching report ID: ${reportId}`, error);
+    throw error;
   }
 };
 
@@ -294,6 +373,103 @@ export const fetchInspections = async (forceRefresh = false) => {
   }
 };
 
+// Fetch a specific inspection by ID
+export const fetchInspectionById = async (inspectionId, forceRefresh = false) => {
+  try {
+    if (!inspectionId) {
+      throw new Error('Inspection ID is required');
+    }
+    
+    // Initialize inspectionDetails cache object if it doesn't exist
+    if (!apiCache.inspectionDetails[inspectionId]) {
+      apiCache.inspectionDetails[inspectionId] = {
+        data: null,
+        timestamp: 0
+      };
+    }
+    
+    // Return cached data if valid and not forcing refresh
+    if (!forceRefresh && 
+        !dataHasChanged && 
+        isCacheValid('inspectionDetails', inspectionId)) {
+      console.log(`Using cached inspection data for ID: ${inspectionId}`);
+      return apiCache.inspectionDetails[inspectionId].data;
+    }
+    
+    // First try to find it in the inspections cache if available
+    if (!forceRefresh && !dataHasChanged && isCacheValid('inspections')) {
+      const cachedInspections = apiCache.inspections.data;
+      const cachedInspection = cachedInspections.find(insp => insp._id === inspectionId);
+      
+      if (cachedInspection) {
+        // Store in the specific inspection cache as well
+        apiCache.inspectionDetails[inspectionId] = {
+          data: cachedInspection,
+          timestamp: Date.now()
+        };
+        return cachedInspection;
+      }
+    }
+    
+    // If not found in cache or cache invalid, fetch directly
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}`, {
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    const inspection = await response.json();
+    
+    // Cache the specific inspection data
+    apiCache.inspectionDetails[inspectionId] = {
+      data: inspection,
+      timestamp: Date.now()
+    };
+    
+    return inspection;
+  } catch (error) {
+    console.error(`Error fetching inspection ID: ${inspectionId}`, error);
+    throw error;
+  }
+};
+
+// Update an inspection
+export const updateInspection = async (inspectionId, inspectionData) => {
+  try {
+    if (!inspectionId) {
+      throw new Error('Inspection ID is required for update');
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(inspectionData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    // Mark data as changed after successful update
+    markDataChanged();
+    
+    // Clear specific inspection cache
+    if (apiCache.inspectionDetails && apiCache.inspectionDetails[inspectionId]) {
+      apiCache.inspectionDetails[inspectionId] = {
+        data: null,
+        timestamp: 0
+      };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating inspection ID: ${inspectionId}`, error);
+    throw error;
+  }
+};
+
 // Submit inspection (no caching for POST)
 export const submitInspection = async (inspectionData) => {
   try {
@@ -313,6 +489,40 @@ export const submitInspection = async (inspectionData) => {
     return await response.json();
   } catch (error) {
     console.error('Error submitting inspection:', error);
+    throw error;
+  }
+};
+
+// Delete an inspection
+export const deleteInspection = async (inspectionId) => {
+  try {
+    if (!inspectionId) {
+      throw new Error('Inspection ID is required for deletion');
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to delete inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    // Mark data as changed after successful deletion
+    markDataChanged();
+    
+    // Clear specific inspection cache
+    if (apiCache.inspectionDetails && apiCache.inspectionDetails[inspectionId]) {
+      apiCache.inspectionDetails[inspectionId] = {
+        data: null,
+        timestamp: 0
+      };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error deleting inspection ID: ${inspectionId}`, error);
     throw error;
   }
 };
