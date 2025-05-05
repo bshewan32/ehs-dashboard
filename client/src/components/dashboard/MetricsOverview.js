@@ -6,7 +6,54 @@ const MetricsOverview = ({ metrics }) => {
   // Memoized function to process metrics data
   const processMetrics = useCallback(() => {
     if (metrics) {
-      setLocalMetrics(metrics);
+      // If metrics is an array, aggregate across all months in 2025
+      if (Array.isArray(metrics)) {
+        const aggregated = metrics.reduce((acc, item) => {
+          // Try to find a date field, default to skipping if not present
+          const dateVal = item.date || item.month || item.period || null;
+          let year = null;
+          if (dateVal) {
+            // Accept both Date and string
+            try {
+              year = new Date(dateVal).getFullYear();
+            } catch {
+              year = null;
+            }
+          }
+          if (year === 2025) {
+            acc.lagging.incidentCount += item.lagging?.incidentCount || 0;
+            acc.lagging.nearMissCount += item.lagging?.nearMissCount || 0;
+            acc.lagging.firstAidCount += item.lagging?.firstAidCount || 0;
+            acc.lagging.medicalTreatmentCount += item.lagging?.medicalTreatmentCount || 0;
+            acc.leading.trainingCompleted += item.leading?.trainingCompleted || 0;
+            acc.leading.inspectionsCompleted += item.leading?.inspectionsCompleted || 0;
+            acc.trainingCompliance += item.trainingCompliance || 0;
+            acc.count += 1;
+          }
+          return acc;
+        }, {
+          lagging: {
+            incidentCount: 0,
+            nearMissCount: 0,
+            firstAidCount: 0,
+            medicalTreatmentCount: 0
+          },
+          leading: {
+            trainingCompleted: 0,
+            inspectionsCompleted: 0
+          },
+          trainingCompliance: 0,
+          count: 0
+        });
+        if (aggregated.count > 0) {
+          aggregated.trainingCompliance = Math.round(aggregated.trainingCompliance / aggregated.count);
+        }
+        // Remove count so it's not used downstream
+        delete aggregated.count;
+        setLocalMetrics(aggregated);
+      } else {
+        setLocalMetrics(metrics);
+      }
     } else {
       // Fallback metrics if none provided
       setLocalMetrics({
