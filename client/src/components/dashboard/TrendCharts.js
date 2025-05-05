@@ -3,7 +3,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContai
 import { fetchReports } from '../services/api';
 import CompanyFilter from './CompanyFilter';
 
-const TrendCharts = () => {
+const TrendCharts = ({ selectedPeriod = 'current' }) => {
   const [incidentData, setIncidentData] = useState([]);
   const [kpiData, setKpiData] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);

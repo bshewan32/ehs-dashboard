@@ -389,7 +389,7 @@ export default function Dashboard() {
         {/* Pass the metrics explicitly to each component */}
         <MetricsOverview metrics={metrics} />
         <KPIOverview metrics={metrics} />
-        <TrendCharts />
+        <TrendCharts selectedPeriod={selectedPeriod} />
         <AIPanel metrics={metrics} />
       </div>
     </div>
