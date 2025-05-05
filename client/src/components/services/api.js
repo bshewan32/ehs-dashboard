@@ -239,6 +239,7 @@ export const fetchReportById = async (reportId, forceRefresh = false) => {
   }
 };
 
+
 // Fetch metrics summary with caching
 export const fetchMetricsSummary = async (forceRefresh = false) => {
   try {
@@ -493,6 +494,7 @@ export const submitInspection = async (inspectionData) => {
   }
 };
 
+
 // Delete an inspection
 export const deleteInspection = async (inspectionId) => {
   try {
@@ -523,6 +525,52 @@ export const deleteInspection = async (inspectionId) => {
     return await response.json();
   } catch (error) {
     console.error(`Error deleting inspection ID: ${inspectionId}`, error);
+    throw error;
+  }
+};
+
+// Update the status of a finding within an inspection
+export const updateFindingStatus = async (inspectionId, findingId, resolved) => {
+  try {
+    if (!inspectionId) {
+      throw new Error('Inspection ID is required');
+    }
+    
+    if (!findingId) {
+      throw new Error('Finding ID is required');
+    }
+    
+    // Define the payload with just the resolved status to update
+    const payload = {
+      findingId,
+      resolved: !!resolved // Convert to boolean
+    };
+    
+    // Make API call to update just the finding status
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}/findings/${findingId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update finding status: ${response.status} ${response.statusText}`);
+    }
+    
+    // Mark data as changed after successful update
+    markDataChanged();
+    
+    // Clear specific inspection cache to force a refresh
+    if (apiCache.inspectionDetails && apiCache.inspectionDetails[inspectionId]) {
+      apiCache.inspectionDetails[inspectionId] = {
+        data: null,
+        timestamp: 0
+      };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating finding status for inspection ID: ${inspectionId}, finding ID: ${findingId}`, error);
     throw error;
   }
 };
