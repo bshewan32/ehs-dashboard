@@ -62,26 +62,42 @@ export default function Dashboard() {
         return dateB - dateA; // Descending - newest first
       });
       
-      // Current month metrics (from the most recent report - already in baseMetrics)
-      const currentMonthMetrics = { ...baseMetrics };
+      // Current month metrics (filter reports to only those from the current month and year)
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth();
+      const currentMonthReports = sortedReports.filter(report => {
+        const reportDate = new Date(report.createdAt || report.updatedAt || report.date || 0);
+        return (
+          reportDate instanceof Date &&
+          !isNaN(reportDate) &&
+          reportDate.getFullYear() === currentYear &&
+          reportDate.getMonth() === currentMonth
+        );
+      });
+      const currentMonthMetrics = calculatePeriodMetrics(currentMonthReports, 'current', 'Current Month');
       
       // YTD metrics (sum of all reports from this year)
-      const currentYear = new Date().getFullYear();
       const ytdReports = sortedReports.filter(report => {
-        const reportDate = new Date(report.createdAt || report.updatedAt || 0);
-        return reportDate.getFullYear() === currentYear;
+        const reportDate = new Date(report.createdAt || report.updatedAt || report.date || 0);
+        return (
+          reportDate instanceof Date &&
+          !isNaN(reportDate) &&
+          reportDate.getFullYear() === currentYear
+        );
       });
-      
       // Calculate YTD metrics by summing all values
       const ytdMetrics = calculatePeriodMetrics(ytdReports, 'YTD', 'Year to Date');
-      
+
       // Last year metrics (all reports from previous year)
       const lastYear = currentYear - 1;
       const lastYearReports = sortedReports.filter(report => {
-        const reportDate = new Date(report.createdAt || report.updatedAt || 0);
-        return reportDate.getFullYear() === lastYear;
+        const reportDate = new Date(report.createdAt || report.updatedAt || report.date || 0);
+        return (
+          reportDate instanceof Date &&
+          !isNaN(reportDate) &&
+          reportDate.getFullYear() === lastYear
+        );
       });
-      
       // Calculate last year metrics
       const lastYearMetrics = calculatePeriodMetrics(lastYearReports, 'lastYear', `${lastYear} Results`);
       
