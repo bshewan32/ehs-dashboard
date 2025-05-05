@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { fetchInspectionById, updateFindingStatus } from '../components/services/api';
+import { fetchInspectionById } from '../components/services/api';
+import { updateFindingStatus } from '../components/services/api';
 
 export default function InspectionDetailsPage() {
   const { id } = useParams();

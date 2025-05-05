@@ -264,6 +264,29 @@ export const fetchInspectionById = async (id) => {
   }
 };
 
+// Update finding status (mark as resolved/unresolved)
+export const updateFindingStatus = async (inspectionId, findingIndex, resolved) => {
+  try {
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}/findings/${findingIndex}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ resolved }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update finding status: ${response.status} ${response.statusText}`);
+    }
+    
+    // Mark data as changed to force refresh on next fetch
+    markDataChanged();
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating finding status:', error);
+    throw error;
+  }
+};
+
 // Helper functions for default/fallback data
 function getDefaultMetrics() {
   return {
@@ -328,3 +351,5 @@ function getFallbackReports() {
     }
   ];
 }
+
+// NOTE: Make sure all API functions are properly exported as 'export const'
