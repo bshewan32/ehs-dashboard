@@ -49,10 +49,10 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [lastFetchTime]);
+  }, [lastFetchTime, processMetricsForDashboard]);
 
   // Process metrics data based on the selected period
-  const processMetricsForDashboard = (metricsData, reportsData) => {
+  const processMetricsForDashboard = useCallback((metricsData, reportsData) => {
     if (!metricsData) {
       return createDefaultMetrics();
     }
@@ -131,7 +131,7 @@ export default function Dashboard() {
     }
     
     return baseMetrics;
-  };
+  }, [selectedPeriod]);
   
   // Calculate metrics for a specific time period
   const calculatePeriodMetrics = (periodReports, periodType, periodLabel) => {
@@ -289,6 +289,16 @@ export default function Dashboard() {
   const handlePeriodChange = (period) => {
     setSelectedPeriod(period);
   };
+
+  // Effect to recalculate metrics when selected period changes
+  useEffect(() => {
+    if (reports.length > 0) {
+      // We already have the reports data, just need to recalculate metrics with the new period
+      const metricsData = reports[0]?.metrics; // Use metrics from the most recent report as base
+      const processedMetrics = processMetricsForDashboard(metricsData, reports);
+      setMetrics(processedMetrics);
+    }
+  }, [selectedPeriod, reports, processMetricsForDashboard]);
 
   useEffect(() => {
     // Initial fetch
