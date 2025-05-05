@@ -73,7 +73,8 @@ export default function Dashboard() {
       const trainingInfo = await fetchTrainingInfo();
       
       // Use our API service to fetch current year metrics
-      const data = await fetchMetricsSummary(force);
+      // The 'true' parameter ensures we get current year data for YTD aggregation
+      const data = await fetchMetricsSummary(true);
       console.log('Raw metrics summary response:', data);
       setLastFetchTime(now);
       
@@ -112,10 +113,16 @@ export default function Dashboard() {
         processedMetrics = updateMetricsWithTrainingData(processedMetrics, trainingInfo);
       }
 
-      // Debug log processed metrics summary
-      console.log('Processed metrics summary:', processedMetrics);
-      // Debug log the metrics (detailed)
-      console.log('Dashboard - processed metrics (detailed):', processedMetrics);
+      // Debug logs for metrics data
+      console.log(`Dashboard - YTD metrics summary for ${new Date().getFullYear()}:`, processedMetrics);
+      
+      // More detailed log for debugging purposes
+      console.log('Dashboard - YTD metrics details:', {
+        lagging: processedMetrics.lagging,
+        leading: processedMetrics.leading,
+        trainingCompliance: processedMetrics.trainingCompliance,
+        dataTimestamp: new Date().toISOString()
+      });
 
       // Store processed metrics
       setMetrics(processedMetrics);

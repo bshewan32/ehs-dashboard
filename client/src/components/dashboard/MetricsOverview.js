@@ -6,8 +6,10 @@ const MetricsOverview = ({ metrics }) => {
   // Memoized function to process metrics data
   const processMetrics = useCallback(() => {
     if (metrics) {
-      // If metrics is an array, aggregate across all months in 2025
+      // If metrics is an array, aggregate across all months in the current year
       if (Array.isArray(metrics)) {
+        const currentYear = new Date().getFullYear();
+        
         const aggregated = metrics.reduce((acc, item) => {
           // Try to find a date field, default to skipping if not present
           const dateVal = item.date || item.month || item.period || null;
@@ -20,7 +22,9 @@ const MetricsOverview = ({ metrics }) => {
               year = null;
             }
           }
-          if (year === 2025) {
+          // Include the data if it's from the current year or if no year could be determined
+          // This ensures we don't miss data due to missing/incorrect date fields
+          if (year === null || year === currentYear) {
             acc.lagging.incidentCount += item.lagging?.incidentCount || 0;
             acc.lagging.nearMissCount += item.lagging?.nearMissCount || 0;
             acc.lagging.firstAidCount += item.lagging?.firstAidCount || 0;
@@ -45,11 +49,18 @@ const MetricsOverview = ({ metrics }) => {
           trainingCompliance: 0,
           count: 0
         });
+        
+        // Calculate average for training compliance
         if (aggregated.count > 0) {
           aggregated.trainingCompliance = Math.round(aggregated.trainingCompliance / aggregated.count);
         }
+        
+        // Add YTD label to indicate these are year-to-date metrics
+        aggregated.isYTD = true;
+        
         // Remove count so it's not used downstream
         delete aggregated.count;
+        
         setLocalMetrics(aggregated);
       } else {
         setLocalMetrics(metrics);
@@ -108,8 +119,13 @@ const MetricsOverview = ({ metrics }) => {
   const inspectionsCompleted = localMetrics.leading?.inspectionsCompleted || 
                               (localMetrics.metrics?.leading?.inspectionsCompleted) || 0;
 
+  const currentYear = new Date().getFullYear();
+  const isYearToDate = localMetrics?.isYTD || false;
+                              
   // For debugging purposes - remove in production
-  console.log('MetricsOverview - Processed metrics:', {
+  console.log('MetricsOverview - Processed metrics (YTD):', {
+    year: currentYear,
+    isYTD: isYearToDate,
     incidentCount,
     nearMissCount,
     firstAidCount,
@@ -121,7 +137,14 @@ const MetricsOverview = ({ metrics }) => {
 
   return (
     <div className="p-4 bg-white rounded shadow">
-      <h2 className="text-xl font-semibold mb-4">Lagging & Leading Indicators</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold">Lagging & Leading Indicators</h2>
+        {isYearToDate && (
+          <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
+            {currentYear} YTD
+          </span>
+        )}
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div className="bg-red-50 p-3 rounded border border-red-200">

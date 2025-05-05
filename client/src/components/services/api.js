@@ -147,7 +147,11 @@ export const fetchMetricsSummary = async (forceRefresh = false) => {
     // Reset the data changed flag since we're about to fetch fresh data
     dataHasChanged = false;
     
-    const response = await fetch(`${api_url}/api/reports/metrics/summary`, {
+    // Get the current year for YTD metrics
+    const currentYear = new Date().getFullYear();
+    
+    // Add the year parameter to get YTD data for the current year
+    const response = await fetch(`${api_url}/api/reports/metrics/summary?year=${currentYear}`, {
       headers: getHeaders(),
     });
     
@@ -156,7 +160,7 @@ export const fetchMetricsSummary = async (forceRefresh = false) => {
     }
     
     const data = await response.json();
-    console.log('Fetched fresh metrics summary data');
+    console.log(`Fetched fresh YTD metrics summary data for ${currentYear}`);
     
     // Cache the fetched data
     apiCache.metricsSummary.data = data;
