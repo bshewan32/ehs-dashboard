@@ -483,6 +483,49 @@ const generateFallbackInsights = (metrics, companyName) => {
   return insights;
 };
 
+// Update a finding's status within an inspection
+export const updateFindingStatus = async (inspectionId, findingId, resolved) => {
+  try {
+    // Get the full inspection first
+    const inspection = await fetchInspectionById(inspectionId);
+    
+    if (!inspection) {
+      throw new Error(`Inspection with ID ${inspectionId} not found`);
+    }
+    
+    // Find the specific finding
+    const findingIndex = inspection.findings.findIndex(finding => finding._id === findingId);
+    
+    if (findingIndex === -1) {
+      throw new Error(`Finding with ID ${findingId} not found in inspection ${inspectionId}`);
+    }
+    
+    // Update the resolved status
+    const updatedInspection = { ...inspection };
+    updatedInspection.findings[findingIndex].resolved = resolved;
+    
+    // Send the update to the server
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}/findings/${findingId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ resolved }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update finding status: ${response.status} ${response.statusText}`);
+    }
+    
+    // Clear the inspections cache since data has changed
+    apiCache.inspections.data = null;
+    markDataChanged();
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating finding status in inspection ${inspectionId}:`, error);
+    throw error;
+  }
+};
+
 // Fetch inspection by ID
 export const fetchInspectionById = async (id) => {
   try {
