@@ -5,6 +5,7 @@ import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
+import PeriodSelector from '../components/dashboard/PeriodSelector';
 import { fetchMetricsSummary } from '../components/services/api';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -15,6 +16,8 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState('current');
+  
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -40,6 +43,14 @@ export default function Dashboard() {
       unit: '%' 
     },
   ];
+  
+  // Handle period change from your existing PeriodSelector
+  const handlePeriodChange = (period) => {
+    setSelectedPeriod(period);
+    // Force a refresh of data with the new period
+    setLastFetchTime(0);
+  };
+
 
   // Modified fetchMetrics function for better structure and error handling
   const fetchMetrics = useCallback(async () => {
@@ -179,9 +190,30 @@ export default function Dashboard() {
 
   return (
     <div id="dashboard-content" className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
+      {/* Period selector added above the main dashboard header */}
+      <div className="mb-4">
+        <PeriodSelector
+          selectedPeriod={selectedPeriod}
+          onChange={handlePeriodChange}
+        />
+      </div>
+      
+      <div className="flex justify-between items-center flex-wrap gap-2">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <div className="space-x-4">
+        <div className="flex flex-wrap space-x-2">
+          {/* Navigation buttons */}
+          <Link to="/reports">
+            <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl shadow hover:bg-indigo-700">
+              Reports
+            </button>
+          </Link>
+          <Link to="/inspections">
+            <button className="bg-purple-600 text-white px-4 py-2 rounded-xl shadow hover:bg-purple-700">
+              Inspections
+            </button>
+          </Link>
+          
+          {/* Existing buttons */}
           <button
             onClick={exportToPDF}
             className="bg-green-600 text-white px-4 py-2 rounded-xl shadow hover:bg-green-700"
