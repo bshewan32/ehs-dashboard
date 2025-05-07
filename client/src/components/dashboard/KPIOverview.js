@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 const KPIOverview = ({ metrics }) => {
   const [kpis, setKpis] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('Current Month');
 
   // Default KPIs to use when none are available
   const defaultKpis = [
@@ -35,21 +34,32 @@ const KPIOverview = ({ metrics }) => {
   const processKPIs = useCallback(() => {
     setLoading(true);
     
-    // Get period label if available
-    if (metrics?.periodLabel) {
-      setPeriod(metrics.periodLabel);
+    // Check if metrics exist
+    if (!metrics) {
+      console.log('KPIOverview: No metrics provided, using defaults');
+      setKpis(defaultKpis);
+      setLoading(false);
+      return;
     }
     
-    // First check if metrics are passed and have KPIs
-    if (metrics?.leading?.kpis && metrics.leading.kpis.length > 0) {
-      console.log('Using KPIs from props:', metrics.leading.kpis);
+    // Check for KPIs in the leading object
+    if (metrics.leading?.kpis && Array.isArray(metrics.leading.kpis) && metrics.leading.kpis.length > 0) {
+      console.log('KPIOverview: Using KPIs from metrics.leading.kpis:', metrics.leading.kpis);
       setKpis(metrics.leading.kpis);
       setLoading(false);
       return;
     }
     
-    // If metrics exist but no KPIs, use default KPIs
-    console.log('No KPIs in props, using defaults');
+    // Check for KPIs at the top level (legacy format)
+    if (metrics.kpis && Array.isArray(metrics.kpis) && metrics.kpis.length > 0) {
+      console.log('KPIOverview: Using KPIs from top-level metrics.kpis');
+      setKpis(metrics.kpis);
+      setLoading(false);
+      return;
+    }
+    
+    // If no KPIs found, use defaults
+    console.log('KPIOverview: No valid KPIs found in metrics, using defaults');
     setKpis(defaultKpis);
     setLoading(false);
   }, [metrics, defaultKpis]);
@@ -70,13 +80,11 @@ const KPIOverview = ({ metrics }) => {
 
   return (
     <div className="p-4 bg-white rounded shadow">
-      <h2 className="text-xl font-semibold mb-4">Key Performance Indicators</h2>
-      <h3 className="text-sm font-medium text-gray-500 mb-4">{period}</h3>
-      
+      <h2 className="text-xl font-semibold mb-2">KPI Metrics</h2>
       {(!kpis || kpis.length === 0) ? (
-        <p className="text-gray-600 italic">No KPI data available. Using default values.</p>
+        <p className="text-gray-600 italic">No KPI data available.</p>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {kpis.map((kpi, index) => (
             <div key={index} className="relative">
               <div className="flex justify-between mb-1">
@@ -91,28 +99,8 @@ const KPIOverview = ({ metrics }) => {
                   style={{ width: `${Math.min(100, (kpi.actual / kpi.target) * 100)}%` }}
                 ></div>
               </div>
-              <div className="flex justify-between mt-1 text-xs text-gray-500">
-                <span>0 {kpi.unit}</span>
-                <span>Target: {kpi.target} {kpi.unit}</span>
-              </div>
-              <div className="mt-2 text-xs text-gray-500">
-                {getCompletionStatus(kpi.actual, kpi.target)}
-              </div>
             </div>
           ))}
-          
-          <div className="mt-6 pt-2 border-t text-xs text-gray-600">
-            <p className="flex items-center">
-              <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {metrics?.periodType === 'ytd' ? 
-                'Year to date KPIs represent averages across all reports this year.' : 
-                metrics?.periodType === 'lastYear' ? 
-                  'Previous year KPIs represent averages across all reports from last year.' : 
-                  'Current KPIs reflect the most recent report data.'}
-            </p>
-          </div>
         </div>
       )}
     </div>
@@ -129,19 +117,6 @@ function getColorByCompletion(actual, target) {
     return 'bg-yellow-500';
   } else {
     return 'bg-red-500';
-  }
-}
-
-// Helper function to get status text based on completion
-function getCompletionStatus(actual, target) {
-  const percentage = (actual / target) * 100;
-  
-  if (percentage >= 90) {
-    return 'On target';
-  } else if (percentage >= 70) {
-    return 'Needs improvement';
-  } else {
-    return 'Action required';
   }
 }
 
