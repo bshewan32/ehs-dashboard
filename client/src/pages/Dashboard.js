@@ -1,4 +1,3 @@
-// client/src/pages/Dashboard.js
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import MetricsOverview from '../components/dashboard/MetricsOverview';
@@ -6,18 +5,20 @@ import KPIOverview from '../components/dashboard/KPIOverview';
 import AIPanel from '../components/dashboard/AIPanel';
 import TrendCharts from '../components/dashboard/TrendCharts';
 import PeriodSelector from '../components/dashboard/PeriodSelector';
-import { fetchMetricsSummary } from '../components/services/api';
+import { fetchMetricsSummary, fetchReports, fetchMetricsForPeriod } from '../components/services/api';
+import { formatPeriodDisplay, getPeriodTimestamp, getPeriodColor } from '../utils/periodUtils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
+  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('current');
-  
+  const [periodFilter, setPeriodFilter] = useState(null);
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -43,74 +44,247 @@ export default function Dashboard() {
       unit: '%' 
     },
   ];
-  
-  // Handle period change from your existing PeriodSelector
-  const handlePeriodChange = (period) => {
-    setSelectedPeriod(period);
-    // Force a refresh of data with the new period
+
+  // Handler for period selection changes
+  const handlePeriodChange = useCallback((periodId, periodValue) => {
+    console.log('Period changed:', periodId, periodValue);
+    setSelectedPeriod(periodId);
+    setPeriodFilter(periodValue);
+    
+    // Force a refresh of the data
     setLastFetchTime(0);
+  }, []);
+
+  // Function to filter reports based on the selected period
+  const filterReportsByPeriod = useCallback((allReports, periodValue) => {
+    if (!periodValue || !allReports || allReports.length === 0) {
+      return allReports;
+    }
+
+    const currentDate = new Date();
+    
+    switch (periodValue.type) {
+      case 'month':
+        // Filter for specific month and year
+        return allReports.filter(report => {
+          // Parse report period - assuming format like "May 2025" or "Q2 2025"
+          const reportDate = parseReportPeriod(report.reportPeriod);
+          
+          if (!reportDate) return false;
+          
+          return reportDate.getMonth() === periodValue.month && 
+                 reportDate.getFullYear() === periodValue.year;
+        });
+        
+      case 'range':
+        // Filter for last X months
+        const monthsAgo = new Date();
+        monthsAgo.setMonth(currentDate.getMonth() - periodValue.months);
+        
+        return allReports.filter(report => {
+          const reportDate = parseReportPeriod(report.reportPeriod);
+          if (!reportDate) return false;
+          
+          return reportDate >= monthsAgo;
+        });
+        
+      case 'quarter':
+        // Filter for specific quarter
+        const quarterStartMonth = (periodValue.quarter - 1) * 3;
+        const quarterEndMonth = quarterStartMonth + 2;
+        
+        return allReports.filter(report => {
+          // For quarterly reports, check if it's directly a quarterly report
+          if (report.reportType === 'Quarterly' && report.reportPeriod.includes(`Q${periodValue.quarter}`)) {
+            return true;
+          }
+          
+          // For monthly reports, check if the month falls in the quarter
+          const reportDate = parseReportPeriod(report.reportPeriod);
+          if (!reportDate) return false;
+          
+          const month = reportDate.getMonth();
+          return month >= quarterStartMonth && 
+                 month <= quarterEndMonth && 
+                 reportDate.getFullYear() === periodValue.year;
+        });
+        
+      case 'ytd':
+        // Filter for current year
+        const yearStart = new Date(currentDate.getFullYear(), 0, 1);
+        
+        return allReports.filter(report => {
+          const reportDate = parseReportPeriod(report.reportPeriod);
+          if (!reportDate) return false;
+          
+          return reportDate >= yearStart;
+        });
+        
+      case 'all':
+      default:
+        // No filtering
+        return allReports;
+    }
+  }, []);
+
+  // Helper function to parse report period strings
+  const parseReportPeriod = (periodString) => {
+    if (!periodString) return null;
+    
+    // Handle quarterly reports like "Q1 2025"
+    if (periodString.startsWith('Q')) {
+      const quarterMatch = periodString.match(/Q(\d)\s+(\d{4})/);
+      if (quarterMatch) {
+        const quarter = parseInt(quarterMatch[1]);
+        const year = parseInt(quarterMatch[2]);
+        const month = (quarter - 1) * 3; // Q1=0, Q2=3, Q3=6, Q4=9
+        return new Date(year, month, 1);
+      }
+    }
+    
+    // Handle monthly reports like "May 2025" or "05/2025"
+    try {
+      // Try parsing as month name and year
+      const date = new Date(periodString);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+      
+      // Try parsing as MM/YYYY
+      const parts = periodString.split('/');
+      if (parts.length === 2) {
+        const month = parseInt(parts[0]) - 1; // JS months are 0-based
+        const year = parseInt(parts[1]);
+        return new Date(year, month, 1);
+      }
+    } catch (err) {
+      console.error('Error parsing report period:', periodString, err);
+    }
+    
+    return null;
   };
 
+  // Function to aggregate metrics from multiple reports
+  const aggregateMetrics = useCallback((filteredReports) => {
+    if (!filteredReports || filteredReports.length === 0) {
+      return null;
+    }
+    
+    // Start with default structure
+    const aggregated = {
+      totalIncidents: 0,
+      totalNearMisses: 0,
+      firstAidCount: 0,
+      medicalTreatmentCount: 0,
+      trainingCompliance: 0,
+      riskScore: 0,
+      lagging: {
+        incidentCount: 0,
+        nearMissCount: 0,
+        firstAidCount: 0,
+        medicalTreatmentCount: 0,
+        lostTimeInjuryCount: 0
+      },
+      leading: {
+        trainingCompleted: 0,
+        inspectionsCompleted: 0,
+        kpis: JSON.parse(JSON.stringify(defaultKpis)) // Deep clone defaultKpis
+      }
+    };
+    
+    // Sum metrics from all reports
+    filteredReports.forEach(report => {
+      // Handle lagging indicators
+      aggregated.totalIncidents += report.metrics?.totalIncidents || 0;
+      aggregated.totalNearMisses += report.metrics?.totalNearMisses || 0;
+      aggregated.firstAidCount += report.metrics?.firstAidCount || 0;
+      aggregated.medicalTreatmentCount += report.metrics?.medicalTreatmentCount || 0;
+      
+      // Handle nested lagging structure
+      if (report.metrics?.lagging) {
+        aggregated.lagging.incidentCount += report.metrics.lagging.incidentCount || 0;
+        aggregated.lagging.nearMissCount += report.metrics.lagging.nearMissCount || 0;
+        aggregated.lagging.firstAidCount += report.metrics.lagging.firstAidCount || 0;
+        aggregated.lagging.medicalTreatmentCount += report.metrics.lagging.medicalTreatmentCount || 0;
+        aggregated.lagging.lostTimeInjuryCount += report.metrics.lagging.lostTimeInjuryCount || 0;
+      }
+      
+      // Handle leading indicators
+      // For percentages like training compliance, we'll keep the latest value
+      if (report.metrics?.trainingCompliance !== undefined) {
+        aggregated.trainingCompliance = report.metrics.trainingCompliance;
+      }
+      
+      if (report.metrics?.riskScore !== undefined) {
+        aggregated.riskScore = report.metrics.riskScore;
+      }
+      
+      // Handle nested leading structure
+      if (report.metrics?.leading) {
+        aggregated.leading.trainingCompleted += report.metrics.leading.trainingCompleted || 0;
+        aggregated.leading.inspectionsCompleted += report.metrics.leading.inspectionsCompleted || 0;
+        
+        // For KPIs, we need to average values rather than sum them
+        if (report.metrics.leading.kpis && report.metrics.leading.kpis.length > 0) {
+          report.metrics.leading.kpis.forEach(kpi => {
+            const existingKpi = aggregated.leading.kpis.find(k => k.id === kpi.id);
+            if (existingKpi) {
+              // Sum for now, we'll calculate averages later
+              existingKpi.actual = (existingKpi.actual || 0) + (kpi.actual || 0);
+              existingKpi._count = (existingKpi._count || 0) + 1; // Track count for averaging
+            } else {
+              // Add any new KPIs not in default set
+              aggregated.leading.kpis.push({
+                ...kpi,
+                _count: 1
+              });
+            }
+          });
+        }
+      }
+    });
+    
+    // Calculate averages for KPIs
+    aggregated.leading.kpis.forEach(kpi => {
+      if (kpi._count && kpi._count > 0) {
+        kpi.actual = Math.round((kpi.actual / kpi._count) * 10) / 10; // Round to 1 decimal
+        delete kpi._count; // Remove the count property
+      }
+    });
+    
+    console.log('Aggregated metrics:', aggregated);
+    return aggregated;
+  }, [defaultKpis]);
 
-  // Modified fetchMetrics function for better structure and error handling
-  const fetchMetrics = useCallback(async () => {
-    // Throttle API calls - only fetch if it's been at least 10 seconds
+  // Fetch metrics for the selected period
+  const fetchData = useCallback(async () => {
+    // Throttle API calls
     const now = Date.now();
     if (now - lastFetchTime < 10000) {
       console.log('Skipping fetch - too soon');
-      return; // Skip this fetch if we've fetched recently
+      return;
     }
 
     try {
       setLoading(true);
       
-      // Use our API service to fetch data
-      const data = await fetchMetricsSummary();
-      console.log('Fetched metrics:', data);
+      // Fetch reports for the trend charts
+      const allReports = await fetchReports();
+      console.log(`Fetched ${allReports.length} reports`);
+      setReports(allReports);
+      
+      // Use the specialized metrics fetch function that handles periods
+      const periodMetrics = await fetchMetricsForPeriod(periodFilter, true);
+      console.log('Fetched metrics for period:', selectedPeriod);
+      
+      setMetrics(periodMetrics);
       setLastFetchTime(now);
-      
-      // Create a properly structured metrics object with proper nesting
-      const processedMetrics = {
-        // Ensure all properties exist
-        totalIncidents: data.totalIncidents ?? data.lagging?.incidentCount ?? 0,
-        totalNearMisses: data.totalNearMisses ?? data.lagging?.nearMissCount ?? 0,
-        firstAidCount: data.firstAidCount ?? data.lagging?.firstAidCount ?? 0,
-        medicalTreatmentCount: data.medicalTreatmentCount ?? data.lagging?.medicalTreatmentCount ?? 0,
-        trainingCompliance: data.trainingCompliance ?? 0,
-        riskScore: data.riskScore ?? 0,
-        
-        // Properly structure the leading metrics
-        leading: {
-          trainingCompleted: data.leading?.trainingCompleted ?? 0,
-          inspectionsCompleted: data.leading?.inspectionsCompleted ?? 0,
-          // Handle nested KPIs properly
-          kpis: Array.isArray(data.leading?.kpis) && data.leading.kpis.length > 0
-            ? data.leading.kpis
-            : Array.isArray(data.kpis) && data.kpis.length > 0
-              ? data.kpis  // Support legacy format with kpis at top level
-              : defaultKpis
-        },
-        
-        // Properly structure lagging metrics
-        lagging: {
-          incidentCount: data.lagging?.incidentCount ?? data.totalIncidents ?? 0,
-          nearMissCount: data.lagging?.nearMissCount ?? data.totalNearMisses ?? 0,
-          firstAidCount: data.lagging?.firstAidCount ?? data.firstAidCount ?? 0,
-          medicalTreatmentCount: data.lagging?.medicalTreatmentCount ?? data.medicalTreatmentCount ?? 0,
-          lostTimeInjuryCount: data.lagging?.lostTimeInjuryCount ?? 0
-        }
-      };
-      
-      console.log('Processed metrics:', processedMetrics);
-      
-      // Store processed metrics
-      setMetrics(processedMetrics);
       setError(null);
     } catch (error) {
-      console.error('Error fetching metrics:', error);
+      console.error('Error fetching data:', error);
       setError(error.message);
       
-      // Only set fallback metrics if we don't already have metrics
+      // Set fallback metrics if we don't already have metrics
       setMetrics(currentMetrics => {
         if (currentMetrics) return currentMetrics;
         return {
@@ -124,8 +298,7 @@ export default function Dashboard() {
             incidentCount: 0,
             nearMissCount: 0,
             firstAidCount: 0,
-            medicalTreatmentCount: 0,
-            lostTimeInjuryCount: 0
+            medicalTreatmentCount: 0
           },
           leading: {
             trainingCompleted: 0,
@@ -137,18 +310,18 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [lastFetchTime, defaultKpis]);
+  }, [lastFetchTime, defaultKpis, selectedPeriod, periodFilter]);
 
   useEffect(() => {
     // Initial fetch
-    fetchMetrics();
+    fetchData();
     
-    // Set up a controlled interval for refreshing data
-    const intervalId = setInterval(fetchMetrics, 30000);
+    // Set up an interval for refreshing data
+    const intervalId = setInterval(fetchData, 30000);
     
     // Clean up interval on unmount
     return () => clearInterval(intervalId);
-  }, [fetchMetrics]);
+  }, [fetchData]);
 
   const exportToPDF = async () => {
     const dashboardElement = document.getElementById('dashboard-content');
@@ -172,14 +345,14 @@ export default function Dashboard() {
       pdf.setFontSize(16);
       pdf.text('EHS Dashboard Report', 105, 15, { align: 'center' });
       pdf.setFontSize(12);
-      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 22, { align: 'center' });
+      pdf.text(`Generated on ${new Date().toLocaleDateString()} - ${selectedPeriod}`, 105, 22, { align: 'center' });
       
       // Add canvas image to PDF
       const imgData = canvas.toDataURL('image/png');
       pdf.addImage(imgData, 'PNG', 10, 30, 190, 0);
       
       // Download the PDF
-      pdf.save(`EHS_Dashboard_${new Date().toISOString().split('T')[0]}.pdf`);
+      pdf.save(`EHS_Dashboard_${selectedPeriod}_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
       console.error('Error exporting dashboard to PDF:', error);
       alert('Failed to export dashboard to PDF');
@@ -190,30 +363,9 @@ export default function Dashboard() {
 
   return (
     <div id="dashboard-content" className="space-y-6 p-6">
-      {/* Period selector added above the main dashboard header */}
-      <div className="mb-4">
-        <PeriodSelector
-          selectedPeriod={selectedPeriod}
-          onChange={handlePeriodChange}
-        />
-      </div>
-      
-      <div className="flex justify-between items-center flex-wrap gap-2">
+      <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <div className="flex flex-wrap space-x-2">
-          {/* Navigation buttons */}
-          <Link to="/reports">
-            <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl shadow hover:bg-indigo-700">
-              Reports
-            </button>
-          </Link>
-          <Link to="/inspections">
-            <button className="bg-purple-600 text-white px-4 py-2 rounded-xl shadow hover:bg-purple-700">
-              Inspections
-            </button>
-          </Link>
-          
-          {/* Existing buttons */}
+        <div className="space-x-4">
           <button
             onClick={exportToPDF}
             className="bg-green-600 text-white px-4 py-2 rounded-xl shadow hover:bg-green-700"
@@ -226,6 +378,27 @@ export default function Dashboard() {
               + Create New Report
             </button>
           </Link>
+        </div>
+      </div>
+
+      {/* Period Controls and Info */}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <div className="w-full md:w-1/3 mb-4 md:mb-0">
+            <PeriodSelector 
+              onPeriodChange={handlePeriodChange}
+              selectedPeriod={selectedPeriod}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <div className={`inline-block px-3 py-1 rounded-full border ${getPeriodColor(selectedPeriod)}`}>
+              {formatPeriodDisplay(selectedPeriod, periodFilter)}
+            </div>
+            <div className="text-xs text-gray-500">
+              {getPeriodTimestamp(selectedPeriod, periodFilter)}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -242,10 +415,10 @@ export default function Dashboard() {
       ) : null}
 
       <div className="space-y-6">
-        {/* Explicitly pass the metrics object to each component */}
+        {/* Pass the metrics explicitly to each component */}
         <MetricsOverview metrics={metrics} />
         <KPIOverview metrics={metrics} />
-        <TrendCharts />
+        <TrendCharts periodFilter={periodFilter} />
         <AIPanel metrics={metrics} />
       </div>
     </div>
