@@ -1,4 +1,6 @@
-// client/src/components/services/api.js - Fixed version
+// client/src/components/services/api.js
+// Improved api.js with better caching, error handling, and data consistency
+
 const api_url = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 // Cache for API responses
@@ -14,19 +16,39 @@ const apiCache = {
   inspections: {
     data: null,
     timestamp: 0
+  },
+  inspectionDetails: {
+    // Will store individual inspection details by ID
+    // Format: { [inspectionId]: { data, timestamp } }
   }
 };
+
+// Initialize inspectionDetails to avoid undefined errors
+apiCache.inspectionDetails = {};
 
 // Cache expiration time in milliseconds (30 seconds)
 const CACHE_EXPIRATION = 30000;
 
+// Track if data has changed (e.g. after a form submission)
+let dataHasChanged = false;
+
 // Helper function to check if cache is valid
-const isCacheValid = (cacheKey) => {
-  const cache = apiCache[cacheKey];
-  if (!cache.data) return false;
-  
-  const now = Date.now();
-  return (now - cache.timestamp) < CACHE_EXPIRATION;
+const isCacheValid = (cacheKey, id = null) => {
+  if (id) {
+    // For caches that are indexed by ID
+    const cache = apiCache[cacheKey][id];
+    if (!cache || !cache.data) return false;
+    
+    const now = Date.now();
+    return (now - cache.timestamp) < CACHE_EXPIRATION;
+  } else {
+    // For regular caches
+    const cache = apiCache[cacheKey];
+    if (!cache.data) return false;
+    
+    const now = Date.now();
+    return (now - cache.timestamp) < CACHE_EXPIRATION;
+  }
 };
 
 // Helper to set up headers with optional auth
@@ -44,13 +66,10 @@ const getHeaders = () => {
   return headers;
 };
 
-// Data change tracking variable
-let dataHasChanged = false;
-
-// Function to mark data as changed
+// Mark data as changed - to be called after successful POST/PUT operations
 export const markDataChanged = () => {
+  console.log('Marking data as changed');
   dataHasChanged = true;
-  console.log('Data marked as changed - will force refresh on next fetch');
 };
 
 // Submit report function (no caching for POST requests)
@@ -63,14 +82,11 @@ export const submitReport = async (reportData) => {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to submit report: ${response.status} ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Failed to submit report: ${response.status} ${response.statusText}`);
     }
     
-    // Clear the cache after successful submission
-    apiCache.reports.data = null;
-    apiCache.metricsSummary.data = null;
-    
-    // Mark data as changed
+    // Clear the cache and mark data as changed after successful submission
     markDataChanged();
     
     return await response.json();
@@ -80,7 +96,7 @@ export const submitReport = async (reportData) => {
   }
 };
 
-// Fetch reports with caching
+// Fetch reports with caching and consistent error handling
 export const fetchReports = async (forceRefresh = false) => {
   try {
     // Return cached data if valid and not forcing refresh
@@ -89,6 +105,7 @@ export const fetchReports = async (forceRefresh = false) => {
       return apiCache.reports.data;
     }
     
+    // Reset the data changed flag
     dataHasChanged = false;
 
     const res = await fetch(`${api_url}/api/reports`, {
@@ -104,18 +121,48 @@ export const fetchReports = async (forceRefresh = false) => {
     
     // Check for empty data and provide default if needed
     if (!data || data.length === 0) {
-      console.warn('No reports returned from API, using placeholder data');
-      const placeholderData = getPlaceholderReports();
-      // Cache the placeholder data
-      apiCache.reports.data = placeholderData;
+      console.warn('No reports returned from API');
+      apiCache.reports.data = [];
       apiCache.reports.timestamp = Date.now();
-      return placeholderData;
+      return [];
     }
 
-    // Cache the fetched data
-    apiCache.reports.data = data;
+    // Normalize the data structure
+    const normalizedData = data.map(report => {
+      // Ensure the metrics structure is consistent
+      const metrics = report.metrics || {};
+      
+      // Ensure lagging and leading structures exist
+      if (!metrics.lagging) {
+        metrics.lagging = {
+          incidentCount: metrics.totalIncidents || 0,
+          nearMissCount: metrics.totalNearMisses || 0,
+          firstAidCount: metrics.firstAidCount || 0, 
+          medicalTreatmentCount: metrics.medicalTreatmentCount || 0,
+          lostTimeInjuryCount: 0
+        };
+      }
+      
+      if (!metrics.leading) {
+        metrics.leading = {
+          trainingCompleted: 0,
+          inspectionsCompleted: 0,
+          kpis: metrics.kpis || []
+        };
+      } else if (!metrics.leading.kpis) {
+        metrics.leading.kpis = metrics.kpis || [];
+      }
+      
+      return {
+        ...report,
+        metrics
+      };
+    });
+    
+    // Cache the normalized data
+    apiCache.reports.data = normalizedData;
     apiCache.reports.timestamp = Date.now();
-    return data;
+    return normalizedData;
   } catch (error) {
     console.error('Error in fetchReports:', error);
     
@@ -125,24 +172,86 @@ export const fetchReports = async (forceRefresh = false) => {
       return apiCache.reports.data;
     }
     
-    // Return fallback data if no cache available
-    const fallbackData = getFallbackReports();
-    apiCache.reports.data = fallbackData;
-    apiCache.reports.timestamp = Date.now();
-    return fallbackData;
+    // Return empty array as fallback
+    return [];
   }
 };
 
-// Fetch metrics summary with caching - IMPROVED VERSION
+// Fetch specific report by ID
+export const fetchReportById = async (reportId, forceRefresh = false) => {
+  try {
+    if (!reportId) {
+      throw new Error('Report ID is required');
+    }
+    
+    // First try to find it in the reports cache if available
+    if (!forceRefresh && !dataHasChanged && isCacheValid('reports')) {
+      const cachedReports = apiCache.reports.data;
+      const cachedReport = cachedReports.find(report => report._id === reportId);
+      
+      if (cachedReport) {
+        console.log(`Using cached report data for ID: ${reportId}`);
+        return cachedReport;
+      }
+    }
+    
+    // If not found in cache or cache invalid, fetch directly
+    const response = await fetch(`${api_url}/api/reports/${reportId}`, {
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch report: ${response.status} ${response.statusText}`);
+    }
+    
+    const report = await response.json();
+    
+    // Normalize the data structure
+    const metrics = report.metrics || {};
+    
+    // Ensure lagging and leading structures exist
+    if (!metrics.lagging) {
+      metrics.lagging = {
+        incidentCount: metrics.totalIncidents || 0,
+        nearMissCount: metrics.totalNearMisses || 0,
+        firstAidCount: metrics.firstAidCount || 0,
+        medicalTreatmentCount: metrics.medicalTreatmentCount || 0,
+        lostTimeInjuryCount: 0
+      };
+    }
+    
+    if (!metrics.leading) {
+      metrics.leading = {
+        trainingCompleted: 0,
+        inspectionsCompleted: 0,
+        kpis: metrics.kpis || []
+      };
+    } else if (!metrics.leading.kpis) {
+      metrics.leading.kpis = metrics.kpis || [];
+    }
+    
+    const normalizedReport = {
+      ...report,
+      metrics
+    };
+    
+    return normalizedReport;
+  } catch (error) {
+    console.error(`Error fetching report ID: ${reportId}`, error);
+    throw error;
+  }
+};
+
+// Fetch metrics summary with caching
 export const fetchMetricsSummary = async (forceRefresh = false) => {
   try {
     // Return cached data if valid and not forcing refresh
     if (!forceRefresh && !dataHasChanged && isCacheValid('metricsSummary')) {
-      console.log('Using cached metrics summary data - no changes detected');
+      console.log('Using cached metrics summary data');
       return apiCache.metricsSummary.data;
     }
     
-    // Reset the data changed flag since we're about to fetch fresh data
+    // Reset the data changed flag
     dataHasChanged = false;
     
     const response = await fetch(`${api_url}/api/reports/metrics/summary`, {
@@ -156,14 +265,13 @@ export const fetchMetricsSummary = async (forceRefresh = false) => {
     const data = await response.json();
     console.log('Metrics data received from server:', data);
     
-    // Normalize the data structure to ensure it's consistent regardless of server format
-    const normalizedData = normalizeMetricsData(data);
+    // Normalize the metrics structure to ensure consistency
+    const normalizedMetrics = normalizeMetricsStructure(data);
     
     // Cache the normalized data
-    apiCache.metricsSummary.data = normalizedData;
+    apiCache.metricsSummary.data = normalizedMetrics;
     apiCache.metricsSummary.timestamp = Date.now();
-    
-    return normalizedData;
+    return normalizedMetrics;
   } catch (error) {
     console.error('Error fetching metrics summary:', error);
     
@@ -174,54 +282,64 @@ export const fetchMetricsSummary = async (forceRefresh = false) => {
     }
     
     // Return default metrics object as fallback
-    const fallbackData = getDefaultMetrics();
-    apiCache.metricsSummary.data = fallbackData;
-    apiCache.metricsSummary.timestamp = Date.now();
-    return fallbackData;
+    const defaultMetrics = getDefaultMetrics();
+    return defaultMetrics;
   }
 };
 
-// Normalize metrics data to ensure consistent structure
-function normalizeMetricsData(data) {
-  // If no data, return default metrics
-  if (!data) return getDefaultMetrics();
+// Normalize metrics structure for consistency
+function normalizeMetricsStructure(metrics) {
+  if (!metrics) return getDefaultMetrics();
   
-  // Create a proper structure that works with all components
-  return {
-    // Top-level properties (for backwards compatibility)
-    totalIncidents: data.totalIncidents ?? data.lagging?.incidentCount ?? 0,
-    totalNearMisses: data.totalNearMisses ?? data.lagging?.nearMissCount ?? 0,
-    firstAidCount: data.firstAidCount ?? data.lagging?.firstAidCount ?? 0,
-    medicalTreatmentCount: data.medicalTreatmentCount ?? data.lagging?.medicalTreatmentCount ?? 0,
-    trainingCompliance: data.trainingCompliance ?? 0,
-    riskScore: data.riskScore ?? 0,
-    
-    // Ensure KPIs at top level are accessible (legacy support)
-    kpis: Array.isArray(data.kpis) ? data.kpis : [],
-    
-    // Proper nested structure for leading/lagging indicators
-    leading: {
-      trainingCompleted: data.leading?.trainingCompleted ?? 0,
-      inspectionsCompleted: data.leading?.inspectionsCompleted ?? 0,
-      // Handle nested KPIs properly - prefer leading.kpis if it exists, otherwise use top-level kpis
-      kpis: Array.isArray(data.leading?.kpis) && data.leading.kpis.length > 0
-        ? data.leading.kpis
-        : Array.isArray(data.kpis) && data.kpis.length > 0
-          ? data.kpis
-          : getDefaultKpis()
-    },
-    
-    lagging: {
-      incidentCount: data.lagging?.incidentCount ?? data.totalIncidents ?? 0,
-      nearMissCount: data.lagging?.nearMissCount ?? data.totalNearMisses ?? 0,
-      firstAidCount: data.lagging?.firstAidCount ?? data.firstAidCount ?? 0,
-      medicalTreatmentCount: data.lagging?.medicalTreatmentCount ?? data.medicalTreatmentCount ?? 0,
-      lostTimeInjuryCount: data.lagging?.lostTimeInjuryCount ?? 0
+  // Create a deep copy to avoid modifying the original object
+  const normalizedMetrics = JSON.parse(JSON.stringify(metrics));
+  
+  // Ensure lagging indicators structure exists
+  if (!normalizedMetrics.lagging) {
+    normalizedMetrics.lagging = {
+      incidentCount: normalizedMetrics.totalIncidents || 0,
+      nearMissCount: normalizedMetrics.totalNearMisses || 0,
+      firstAidCount: normalizedMetrics.firstAidCount || 0,
+      medicalTreatmentCount: normalizedMetrics.medicalTreatmentCount || 0,
+      lostTimeInjuryCount: 0
+    };
+  }
+  
+  // Ensure leading indicators structure exists
+  if (!normalizedMetrics.leading) {
+    normalizedMetrics.leading = {
+      trainingCompleted: 0,
+      inspectionsCompleted: 0,
+      kpis: normalizedMetrics.kpis || []
+    };
+  } else if (!normalizedMetrics.leading.kpis) {
+    // If leading exists but kpis doesn't, check if kpis exists at top level
+    normalizedMetrics.leading.kpis = normalizedMetrics.kpis || [];
+  }
+  
+  // If kpis exists at top level, make sure it's also in leading.kpis
+  if (Array.isArray(normalizedMetrics.kpis) && normalizedMetrics.kpis.length > 0) {
+    // Ensure leading.kpis exists and copy kpis into it if empty
+    if (!Array.isArray(normalizedMetrics.leading.kpis) || normalizedMetrics.leading.kpis.length === 0) {
+      normalizedMetrics.leading.kpis = [...normalizedMetrics.kpis];
     }
-  };
+  }
+  
+  // Add any missing KPIs if there are none or add defaults if they're missing
+  if (!normalizedMetrics.leading.kpis || normalizedMetrics.leading.kpis.length === 0) {
+    normalizedMetrics.leading.kpis = getDefaultKPIs();
+  }
+  
+  // Ensure top-level properties for backward compatibility
+  normalizedMetrics.totalIncidents = normalizedMetrics.lagging?.incidentCount ?? normalizedMetrics.totalIncidents ?? 0;
+  normalizedMetrics.totalNearMisses = normalizedMetrics.lagging?.nearMissCount ?? normalizedMetrics.totalNearMisses ?? 0;
+  normalizedMetrics.firstAidCount = normalizedMetrics.lagging?.firstAidCount ?? normalizedMetrics.firstAidCount ?? 0;
+  normalizedMetrics.medicalTreatmentCount = normalizedMetrics.lagging?.medicalTreatmentCount ?? normalizedMetrics.medicalTreatmentCount ?? 0;
+  
+  return normalizedMetrics;
 }
 
-// Handle fetch inspections with caching
+// Fetch inspections with caching
 export const fetchInspections = async (forceRefresh = false) => {
   try {
     // Return cached data if valid and not forcing refresh
@@ -230,6 +348,7 @@ export const fetchInspections = async (forceRefresh = false) => {
       return apiCache.inspections.data;
     }
     
+    // Reset the data changed flag
     dataHasChanged = false;
 
     const response = await fetch(`${api_url}/api/inspections`, {
@@ -259,6 +378,103 @@ export const fetchInspections = async (forceRefresh = false) => {
   }
 };
 
+// Fetch a specific inspection by ID
+export const fetchInspectionById = async (inspectionId, forceRefresh = false) => {
+  try {
+    if (!inspectionId) {
+      throw new Error('Inspection ID is required');
+    }
+    
+    // Initialize inspectionDetails cache object if it doesn't exist
+    if (!apiCache.inspectionDetails[inspectionId]) {
+      apiCache.inspectionDetails[inspectionId] = {
+        data: null,
+        timestamp: 0
+      };
+    }
+    
+    // Return cached data if valid and not forcing refresh
+    if (!forceRefresh && 
+        !dataHasChanged && 
+        isCacheValid('inspectionDetails', inspectionId)) {
+      console.log(`Using cached inspection data for ID: ${inspectionId}`);
+      return apiCache.inspectionDetails[inspectionId].data;
+    }
+    
+    // First try to find it in the inspections cache if available
+    if (!forceRefresh && !dataHasChanged && isCacheValid('inspections')) {
+      const cachedInspections = apiCache.inspections.data;
+      const cachedInspection = cachedInspections.find(insp => insp._id === inspectionId);
+      
+      if (cachedInspection) {
+        // Store in the specific inspection cache as well
+        apiCache.inspectionDetails[inspectionId] = {
+          data: cachedInspection,
+          timestamp: Date.now()
+        };
+        return cachedInspection;
+      }
+    }
+    
+    // If not found in cache or cache invalid, fetch directly
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}`, {
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    const inspection = await response.json();
+    
+    // Cache the specific inspection data
+    apiCache.inspectionDetails[inspectionId] = {
+      data: inspection,
+      timestamp: Date.now()
+    };
+    
+    return inspection;
+  } catch (error) {
+    console.error(`Error fetching inspection ID: ${inspectionId}`, error);
+    throw error;
+  }
+};
+
+// Update an inspection
+export const updateInspection = async (inspectionId, inspectionData) => {
+  try {
+    if (!inspectionId) {
+      throw new Error('Inspection ID is required for update');
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(inspectionData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    // Mark data as changed after successful update
+    markDataChanged();
+    
+    // Clear specific inspection cache
+    if (apiCache.inspectionDetails && apiCache.inspectionDetails[inspectionId]) {
+      apiCache.inspectionDetails[inspectionId] = {
+        data: null,
+        timestamp: 0
+      };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating inspection ID: ${inspectionId}`, error);
+    throw error;
+  }
+};
+
 // Submit inspection (no caching for POST)
 export const submitInspection = async (inspectionData) => {
   try {
@@ -272,10 +488,7 @@ export const submitInspection = async (inspectionData) => {
       throw new Error(`Failed to submit inspection: ${response.status} ${response.statusText}`);
     }
     
-    // Clear the inspections cache after successful submission
-    apiCache.inspections.data = null;
-    
-    // Mark data as changed
+    // Mark data as changed after successful submission
     markDataChanged();
     
     return await response.json();
@@ -285,8 +498,88 @@ export const submitInspection = async (inspectionData) => {
   }
 };
 
-// Helper functions for default/fallback data
-function getDefaultKpis() {
+// Delete an inspection
+export const deleteInspection = async (inspectionId) => {
+  try {
+    if (!inspectionId) {
+      throw new Error('Inspection ID is required for deletion');
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to delete inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    // Mark data as changed after successful deletion
+    markDataChanged();
+    
+    // Clear specific inspection cache
+    if (apiCache.inspectionDetails && apiCache.inspectionDetails[inspectionId]) {
+      apiCache.inspectionDetails[inspectionId] = {
+        data: null,
+        timestamp: 0
+      };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error deleting inspection ID: ${inspectionId}`, error);
+    throw error;
+  }
+};
+
+// Update the status of a finding within an inspection
+export const updateFindingStatus = async (inspectionId, findingId, resolved) => {
+  try {
+    if (!inspectionId) {
+      throw new Error('Inspection ID is required');
+    }
+    
+    if (!findingId) {
+      throw new Error('Finding ID is required');
+    }
+    
+    // Define the payload with just the resolved status to update
+    const payload = {
+      findingId,
+      resolved: !!resolved // Convert to boolean
+    };
+    
+    // Make API call to update just the finding status
+    const response = await fetch(`${api_url}/api/inspections/${inspectionId}/findings/${findingId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update finding status: ${response.status} ${response.statusText}`);
+    }
+    
+    // Mark data as changed after successful update
+    markDataChanged();
+    
+    // Clear specific inspection cache to force a refresh
+    if (apiCache.inspectionDetails && apiCache.inspectionDetails[inspectionId]) {
+      apiCache.inspectionDetails[inspectionId] = {
+        data: null,
+        timestamp: 0
+      };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating finding status for inspection ID: ${inspectionId}, finding ID: ${findingId}`, error);
+    throw error;
+  }
+};
+
+// Helper function to get default KPIs
+function getDefaultKPIs() {
   return [
     { 
       id: 'nearMissRate',
@@ -308,10 +601,11 @@ function getDefaultKpis() {
       actual: 0,
       target: 100,
       unit: '%' 
-    },
+    }
   ];
 }
 
+// Helper function for default metrics
 function getDefaultMetrics() {
   return {
     lagging: {
@@ -324,33 +618,9 @@ function getDefaultMetrics() {
     leading: {
       trainingCompleted: 0,
       inspectionsCompleted: 0,
-      kpis: getDefaultKpis()
+      kpis: getDefaultKPIs()
     },
     trainingCompliance: 0,
     riskScore: 0
   };
-}
-
-function getPlaceholderReports() {
-  return [
-    {
-      _id: 'placeholder1',
-      companyName: 'Example Corp',
-      reportPeriod: 'Q1',
-      reportType: 'Monthly',
-      metrics: getDefaultMetrics()
-    }
-  ];
-}
-
-function getFallbackReports() {
-  return [
-    {
-      _id: 'error1',
-      companyName: 'Data Unavailable',
-      reportPeriod: 'Current',
-      reportType: 'Error',
-      metrics: getDefaultMetrics()
-    }
-  ];
 }
