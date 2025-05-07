@@ -277,6 +277,243 @@ export const fetchInspections = async (forceRefresh = false) => {
   }
 };
 
+// Fetch report by ID 
+export const fetchReportById = async (id) => {
+  try {
+    // Check if it's in the cache first
+    if (apiCache.reports.data) {
+      const cachedReport = apiCache.reports.data.find(
+        report => report._id === id
+      );
+      
+      if (cachedReport) {
+        console.log('Using cached report data for ID:', id);
+        return cachedReport;
+      }
+    }
+    
+    const response = await fetch(`${api_url}/api/reports/${id}`, {
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch report: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Error fetching report ID ${id}:`, error);
+    throw error;
+  }
+};
+
+// Fetch reports for a specific company
+export const fetchReportsByCompany = async (companyName) => {
+  try {
+    // Get all reports first
+    const allReports = await fetchReports();
+    
+    // Filter for the specific company
+    return allReports.filter(report => report.companyName === companyName);
+  } catch (error) {
+    console.error(`Error fetching reports for company ${companyName}:`, error);
+    throw error;
+  }
+};
+
+// Update an existing report
+export const updateReport = async (id, reportData) => {
+  try {
+    const response = await fetch(`${api_url}/api/reports/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(reportData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update report: ${response.status} ${response.statusText}`);
+    }
+    
+    // Clear the cache after update
+    apiCache.reports.data = null;
+    apiCache.metricsSummary.data = null;
+    apiCache.periodMetrics = {};
+    markDataChanged();
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating report ID ${id}:`, error);
+    throw error;
+  }
+};
+
+// Update an existing inspection
+export const updateInspection = async (id, inspectionData) => {
+  try {
+    const response = await fetch(`${api_url}/api/inspections/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(inspectionData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    // Clear the cache after update
+    apiCache.inspections.data = null;
+    markDataChanged();
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating inspection ID ${id}:`, error);
+    throw error;
+  }
+};
+
+// Delete a report
+export const deleteReport = async (id) => {
+  try {
+    const response = await fetch(`${api_url}/api/reports/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to delete report: ${response.status} ${response.statusText}`);
+    }
+    
+    // Clear the cache after deletion
+    apiCache.reports.data = null;
+    apiCache.metricsSummary.data = null; 
+    apiCache.periodMetrics = {};
+    markDataChanged();
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error deleting report ID ${id}:`, error);
+    throw error;
+  }
+};
+
+// Delete an inspection
+export const deleteInspection = async (id) => {
+  try {
+    const response = await fetch(`${api_url}/api/inspections/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to delete inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    // Clear the cache after deletion
+    apiCache.inspections.data = null;
+    markDataChanged();
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error deleting inspection ID ${id}:`, error);
+    throw error;
+  }
+};
+
+// Generate safety insights/recommendations using AI
+export const generateSafetyInsights = async (metricsData, companyName = null) => {
+  try {
+    const response = await fetch(`${api_url}/api/ai/safety-insights`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        metrics: metricsData,
+        companyName: companyName || 'All Companies'
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to generate safety insights: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.insights || [];
+  } catch (error) {
+    console.error('Error generating safety insights:', error);
+    
+    // Return fallback recommendations if the API call fails
+    return generateFallbackInsights(metricsData, companyName);
+  }
+};
+
+// Generate fallback insights if AI API fails
+const generateFallbackInsights = (metrics, companyName) => {
+  const insights = [];
+  const companyContext = companyName ? ` for ${companyName}` : '';
+  
+  // Extract metrics data
+  const incidentCount = metrics?.lagging?.incidentCount || 
+                       metrics?.totalIncidents || 0;
+  const nearMissCount = metrics?.lagging?.nearMissCount || 
+                       metrics?.totalNearMisses || 0;
+  const trainingCompliance = metrics?.trainingCompliance || 0;
+  
+  // Generate basic insights based on metrics
+  if (incidentCount > 5) {
+    insights.push(`The high number of incidents${companyContext} (${incidentCount}) suggests potential systemic issues in risk controls. Consider conducting a comprehensive risk assessment focusing on areas with recurring incidents.`);
+  }
+  
+  if (nearMissCount < 5) {
+    insights.push(`The low near miss reporting${companyContext} (${nearMissCount}) may indicate underreporting of safety concerns. Develop a positive safety culture by implementing a non-punitive reporting system.`);
+  }
+  
+  if (trainingCompliance < 80) {
+    insights.push(`Training compliance${companyContext} is below target at ${trainingCompliance}%. Inadequate training is often a contributing factor in workplace incidents. Identify barriers to training completion.`);
+  }
+  
+  if (incidentCount === 0 && nearMissCount === 0) {
+    insights.push(`The absence of reported incidents and near misses${companyContext} may indicate excellent safety performance, but could also suggest reporting gaps. Conduct an audit to validate reporting processes.`);
+  }
+  
+  // Add default insight if no specific ones were generated
+  if (insights.length === 0) {
+    insights.push(`Based on the current metrics${companyContext}, no significant safety concerns are identified. Consider conducting regular safety perception surveys to identify potential safety culture gaps.`);
+  }
+  
+  return insights;
+};
+
+// Fetch inspection by ID
+export const fetchInspectionById = async (id) => {
+  try {
+    // Check if it's in the cache first
+    if (apiCache.inspections.data) {
+      const cachedInspection = apiCache.inspections.data.find(
+        inspection => inspection._id === id
+      );
+      
+      if (cachedInspection) {
+        console.log('Using cached inspection data for ID:', id);
+        return cachedInspection;
+      }
+    }
+    
+    const response = await fetch(`${api_url}/api/inspections/${id}`, {
+      headers: getHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch inspection: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Error fetching inspection ID ${id}:`, error);
+    throw error;
+  }
+};
+
 // Submit inspection (no caching for POST)
 export const submitInspection = async (inspectionData) => {
   try {
