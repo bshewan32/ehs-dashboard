@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
 import { fetchReports } from '../services/api';
 
-const TrendCharts = ({ periodFilter, companyFilter }) => {
+const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
   const [incidentData, setIncidentData] = useState([]);
   const [kpiData, setKpiData] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);

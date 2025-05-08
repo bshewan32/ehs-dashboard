@@ -331,6 +331,45 @@ export default function Dashboard() {
       setExporting(false);
     }
   };
+  
+  // Add this function to your Dashboard.js file, right next to your other functions:
+
+// Helper function to parse report period strings
+const parseReportPeriod = (periodString) => {
+  if (!periodString) return null;
+  
+  // Handle quarterly reports like "Q1 2025"
+  if (periodString.startsWith('Q')) {
+    const quarterMatch = periodString.match(/Q(\d)\s+(\d{4})/);
+    if (quarterMatch) {
+      const quarter = parseInt(quarterMatch[1]);
+      const year = parseInt(quarterMatch[2]);
+      const month = (quarter - 1) * 3; // Q1=0, Q2=3, Q3=6, Q4=9
+      return new Date(year, month, 1);
+    }
+  }
+  
+  // Handle monthly reports like "May 2025" or "05/2025"
+  try {
+    // Try parsing as month name and year
+    const date = new Date(periodString);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+    
+    // Try parsing as MM/YYYY
+    const parts = periodString.split('/');
+    if (parts.length === 2) {
+      const month = parseInt(parts[0]) - 1; // JS months are 0-based
+      const year = parseInt(parts[1]);
+      return new Date(year, month, 1);
+    }
+  } catch (err) {
+    console.error('Error parsing report period:', periodString, err);
+  }
+  
+  return null;
+};
 
   return (
     <div id="dashboard-content" className="space-y-6 p-6">
