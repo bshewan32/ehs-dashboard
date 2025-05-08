@@ -1,4 +1,4 @@
-// client/src/utils/periodUtils.js
+// src/utils/periodUtils.js
 
 // Format period value into a human-readable string
 export const formatPeriodDisplay = (periodId, periodValue) => {
@@ -109,3 +109,50 @@ export const getPeriodColor = (periodId) => {
       return 'bg-gray-100 text-gray-800 border-gray-200';
   }
 };
+
+// Helper function to parse report period strings - MADE SURE THIS IS EXPORTED
+export const parseReportPeriod = (periodString) => {
+  if (!periodString) return null;
+  
+  // Handle quarterly reports like "Q1 2025"
+  if (periodString.startsWith('Q')) {
+    const quarterMatch = periodString.match(/Q(\d)\s+(\d{4})/);
+    if (quarterMatch) {
+      const quarter = parseInt(quarterMatch[1]);
+      const year = parseInt(quarterMatch[2]);
+      const month = (quarter - 1) * 3; // Q1=0, Q2=3, Q3=6, Q4=9
+      return new Date(year, month, 1);
+    }
+  }
+  
+  // Handle monthly reports like "May 2025" or "05/2025"
+  try {
+    // Try parsing as month name and year
+    const date = new Date(periodString);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+    
+    // Try parsing as MM/YYYY
+    const parts = periodString.split('/');
+    if (parts.length === 2) {
+      const month = parseInt(parts[0]) - 1; // JS months are 0-based
+      const year = parseInt(parts[1]);
+      return new Date(year, month, 1);
+    }
+  } catch (err) {
+    console.error('Error parsing report period:', periodString, err);
+  }
+  
+  return null;
+};
+
+// Also export all functions as a default export
+const periodUtils = {
+  formatPeriodDisplay,
+  getPeriodTimestamp,
+  getPeriodColor,
+  parseReportPeriod
+};
+
+export default periodUtils;
