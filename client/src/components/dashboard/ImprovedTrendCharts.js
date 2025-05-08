@@ -1,90 +1,144 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
 import { fetchReports } from '../services/api';
-import { parseReportPeriod } from '../utils/periodUtils.js';
-// import { parseReportPeriod } from '../../utils/periodUtils';
 
-
-const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
+const TrendCharts = ({ periodFilter, companyFilter }) => {
   const [incidentData, setIncidentData] = useState([]);
   const [kpiData, setKpiData] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastFetchTime, setLastFetchTime] = useState(0);
 
-  // Create memoized load function to prevent unnecessary rerenders
-  const loadTrendData = useCallback(async () => {
-    // Throttle API calls - only fetch if it's been at least 30 seconds or period changed
-    const now = Date.now();
-    if (now - lastFetchTime < 30000 && incidentData.length > 0 && !periodFilter) {
-      return; // Skip this fetch
+  // Helper function to ensure valid period names
+  const formatPeriod = (period) => {
+    if (!period || period === '123') return 'Missing';
+    return period;
+  };
+  
+  // Helper function to parse report period strings
+  const parseReportPeriod = (periodString) => {
+    if (!periodString) return null;
+    
+    // Handle quarterly reports like "Q1 2025"
+    if (periodString.startsWith('Q')) {
+      const quarterMatch = periodString.match(/Q(\d)\s+(\d{4})/);
+      if (quarterMatch) {
+        const quarter = parseInt(quarterMatch[1]);
+        const year = parseInt(quarterMatch[2]);
+        const month = (quarter - 1) * 3; // Q1=0, Q2=3, Q3=6, Q4=9
+        return new Date(year, month, 1);
+      }
     }
     
+    // Handle monthly reports like "May 2025" or "05/2025"
     try {
-      setDataLoading(true);
-      const reports = await fetchReports();
-      setLastFetchTime(now);
-      
-      // First filter reports by period if a period filter is provided
-      let filteredReports = reports;
-      if (periodFilter) {
-        filteredReports = filterReportsByPeriod(reports, periodFilter);
+      // Try parsing as month name and year
+      const date = new Date(periodString);
+      if (!isNaN(date.getTime())) {
+        return date;
       }
       
-      // Then filter by company if a company filter is provided
-      if (companyFilter) {
-        filteredReports = filteredReports.filter(report => 
-          report.companyName === companyFilter);
+      // Try parsing as MM/YYYY
+      const parts = periodString.split('/');
+      if (parts.length === 2) {
+        const month = parseInt(parts[0]) - 1; // JS months are 0-based
+        const year = parseInt(parts[1]);
+        return new Date(year, month, 1);
       }
-      
-      console.log(`Using ${filteredReports.length} of ${reports.length} reports for trend charts`);
-      
-      if (!filteredReports || filteredReports.length === 0) {
-        console.warn('No reports data available after filtering');
-        setPlaceholderData();
-        return;
-      }
-
-      // 1. Extract unique periods from reports
-      const periods = extractUniquePeriods(filteredReports);
-      
-      // 2. Process data by period (this is where we'll aggregate by time period)
-      processIncidentDataByPeriod(filteredReports, periods);
-      processKpiDataByPeriod(filteredReports, periods);
-      
-      setError(null);
-      setDataLoading(false);
     } catch (err) {
-      console.error('Error loading trend data:', err);
-      setError(err.message);
-      setDataLoading(false);
-      
-      // Set fallback data if we don't have any
-      if (incidentData.length === 0) {
-        setPlaceholderData();
-      }
+      console.error('Error parsing report period:', periodString, err);
     }
-  }, [lastFetchTime, incidentData.length, periodFilter, companyFilter]);
-
-  // Set placeholder data for empty states
-  const setPlaceholderData = () => {
-    const placeholderData = [
-      { name: 'Jan', incidents: 0, nearMisses: 0 },
-      { name: 'Feb', incidents: 0, nearMisses: 0 },
-      { name: 'Mar', incidents: 0, nearMisses: 0 },
-    ];
-    setIncidentData(placeholderData);
     
-    const placeholderKpiData = [
-      { name: 'Jan', nearMissRate: 0, criticalRiskVerification: 0, electricalCompliance: 0 },
-      { name: 'Feb', nearMissRate: 0, criticalRiskVerification: 0, electricalCompliance: 0 },
-      { name: 'Mar', nearMissRate: 0, criticalRiskVerification: 0, electricalCompliance: 0 },
-    ];
-    setKpiData(placeholderKpiData);
+    return null;
   };
 
+  // Function to filter reports based on periodFilter and companyFilter
+  const filterReports = useCallback((reports, periodValue, company) => {
+    if (!reports || reports.length === 0) {
+      return reports;
+    }
+    
+    // First apply period filter
+    let filteredReports = reports;
+    
+    if (periodValue) {
+      const currentDate = new Date();
+      
+      switch (periodValue.type) {
+        case 'month':
+          // Filter for specific month and year
+          filteredReports = filteredReports.filter(report => {
+            // Parse report period - assuming format like "May 2025" or "Q2 2025"
+            const reportDate = parseReportPeriod(report.reportPeriod);
+            
+            if (!reportDate) return false;
+            
+            return reportDate.getMonth() === periodValue.month && 
+                   reportDate.getFullYear() === periodValue.year;
+          });
+          break;
+          
+        case 'range':
+          // Filter for last X months
+          const monthsAgo = new Date();
+          monthsAgo.setMonth(currentDate.getMonth() - periodValue.months);
+          
+          filteredReports = filteredReports.filter(report => {
+            const reportDate = parseReportPeriod(report.reportPeriod);
+            if (!reportDate) return false;
+            
+            return reportDate >= monthsAgo;
+          });
+          break;
+          
+        case 'quarter':
+          // Filter for specific quarter
+          const quarterStartMonth = (periodValue.quarter - 1) * 3;
+          const quarterEndMonth = quarterStartMonth + 2;
+          
+          filteredReports = filteredReports.filter(report => {
+            // For quarterly reports, check if it's directly a quarterly report
+            if (report.reportType === 'Quarterly' && report.reportPeriod.includes(`Q${periodValue.quarter}`)) {
+              return true;
+            }
+            
+            // For monthly reports, check if the month falls in the quarter
+            const reportDate = parseReportPeriod(report.reportPeriod);
+            if (!reportDate) return false;
+            
+            const month = reportDate.getMonth();
+            return month >= quarterStartMonth && 
+                   month <= quarterEndMonth && 
+                   reportDate.getFullYear() === periodValue.year;
+          });
+          break;
+          
+        case 'ytd':
+          // Filter for current year
+          const yearStart = new Date(currentDate.getFullYear(), 0, 1);
+          
+          filteredReports = filteredReports.filter(report => {
+            const reportDate = parseReportPeriod(report.reportPeriod);
+            if (!reportDate) return false;
+            
+            return reportDate >= yearStart;
+          });
+          break;
+          
+        // No filtering for 'all' or default
+      }
+    }
+    
+    // Then apply company filter if provided
+    if (company) {
+      filteredReports = filteredReports.filter(report => report.companyName === company);
+    }
+    
+    return filteredReports;
+  }, []);
+
   // Extract unique periods from reports and sort them chronologically
-  const extractUniquePeriods = (reports) => {
+  const extractUniquePeriods = useCallback((reports) => {
     // Create a map of period string to date object for sorting
     const periodMap = new Map();
     
@@ -105,10 +159,34 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
     
     // Return the sorted period strings
     return sortedPeriods.map(entry => entry[0]);
-  };
+  }, []);
+
+  // Format period string for better display
+  const formatPeriodForDisplay = useCallback((periodString) => {
+    if (!periodString) return 'Unknown';
+    
+    // Handle quarterly reports (Q1 2025)
+    if (periodString.match(/^Q[1-4]\s+\d{4}$/)) {
+      return periodString;
+    }
+    
+    // Try to format into shorter month format
+    try {
+      const date = parseReportPeriod(periodString);
+      if (date) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${months[date.getMonth()]} ${date.getFullYear()}`;
+      }
+    } catch (err) {
+      // Just return the original string if we can't format it
+    }
+    
+    return periodString;
+  }, []);
 
   // Process incident data by period
-  const processIncidentDataByPeriod = (reports, sortedPeriods) => {
+  const processIncidentDataByPeriod = useCallback((reports, sortedPeriods) => {
     // Create data structure with all periods
     const periodData = sortedPeriods.map(period => ({
       name: formatPeriodForDisplay(period),
@@ -154,10 +232,10 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
     }
     
     setIncidentData(periodData);
-  };
+  }, [companyFilter, formatPeriodForDisplay]);
 
   // Process KPI data by period
-  const processKpiDataByPeriod = (reports, sortedPeriods) => {
+  const processKpiDataByPeriod = useCallback((reports, sortedPeriods) => {
     // Create data structure with all periods
     const periodData = sortedPeriods.map(period => ({
       name: formatPeriodForDisplay(period),
@@ -199,9 +277,6 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
               periodEntry.electricalCompliance += kpi.actual || 0;
               periodEntry.kpiCounts.electricalCompliance++;
               break;
-            default:
-              // Skip other KPIs
-              break;
           }
         });
       }
@@ -233,101 +308,104 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
     });
     
     setKpiData(periodData);
-  };
+  }, [companyFilter, formatPeriodForDisplay]);
 
-  // Helper function to filter reports by period
-  const filterReportsByPeriod = (reports, periodFilter) => {
-    if (!periodFilter || !reports || reports.length === 0) {
-      return reports;
-    }
-
-    const currentDate = new Date();
-    
-    switch (periodFilter.type) {
-      case 'month':
-        // Filter for specific month and year
-        return reports.filter(report => {
-          const reportDate = parseReportPeriod(report.reportPeriod);
-          if (!reportDate) return false;
-          
-          return reportDate.getMonth() === periodFilter.month && 
-                 reportDate.getFullYear() === periodFilter.year;
-        });
-        
-      case 'range':
-        // Filter for last X months
-        const monthsAgo = new Date();
-        monthsAgo.setMonth(currentDate.getMonth() - periodFilter.months);
-        
-        return reports.filter(report => {
-          const reportDate = parseReportPeriod(report.reportPeriod);
-          if (!reportDate) return false;
-          
-          return reportDate >= monthsAgo;
-        });
-        
-      case 'quarter':
-        // Filter for specific quarter
-        const quarterStartMonth = (periodFilter.quarter - 1) * 3;
-        const quarterEndMonth = quarterStartMonth + 2;
-        
-        return reports.filter(report => {
-          // For quarterly reports, check if it's directly a quarterly report
-          if (report.reportType === 'Quarterly' && report.reportPeriod.includes(`Q${periodFilter.quarter}`)) {
-            return true;
-          }
-          
-          // For monthly reports, check if the month falls in the quarter
-          const reportDate = parseReportPeriod(report.reportPeriod);
-          if (!reportDate) return false;
-          
-          const month = reportDate.getMonth();
-          return month >= quarterStartMonth && 
-                 month <= quarterEndMonth && 
-                 reportDate.getFullYear() === periodFilter.year;
-        });
-        
-      case 'ytd':
-        // Filter for current year
-        const yearStart = new Date(currentDate.getFullYear(), 0, 1);
-        
-        return reports.filter(report => {
-          const reportDate = parseReportPeriod(report.reportPeriod);
-          if (!reportDate) return false;
-          
-          return reportDate >= yearStart;
-        });
-        
-      case 'all':
-      default:
-        // No filtering
-        return reports;
-    }
-  };
-
-  // Format period string for better display
-  const formatPeriodForDisplay = (periodString) => {
-    if (!periodString) return 'Unknown';
-    
-    // Handle quarterly reports (Q1 2025)
-    if (periodString.match(/^Q[1-4]\s+\d{4}$/)) {
-      return periodString;
+  // Create memoized load function to prevent unnecessary rerenders
+  const loadTrendData = useCallback(async () => {
+    // Throttle API calls - only fetch if it's been at least 30 seconds or period changed
+    const now = Date.now();
+    if (now - lastFetchTime < 30000 && incidentData.length > 0 && !periodFilter) {
+      return; // Skip this fetch
     }
     
-    // Try to format into shorter month format
     try {
-      const date = parseReportPeriod(periodString);
-      if (date) {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        return `${months[date.getMonth()]} ${date.getFullYear()}`;
+      setDataLoading(true);
+      const reports = await fetchReports();
+      setLastFetchTime(now);
+      
+      // Filter reports based on both period and company filters
+      const filteredReports = filterReports(reports, periodFilter, companyFilter);
+        
+      console.log(`Using ${filteredReports.length} of ${reports.length} reports for trend charts`);
+      
+      if (!filteredReports || filteredReports.length === 0) {
+        console.warn('No reports data available after filtering');
+        // Create placeholder data if no reports
+        const placeholderData = [
+          { name: 'Q1', incidents: 0, nearMisses: 0 },
+          { name: 'Q2', incidents: 0, nearMisses: 0 },
+        ];
+        setIncidentData(placeholderData);
+        
+        const placeholderKpiData = [
+          { 
+            name: 'Q1', 
+            nearMissRate: 0, 
+            criticalRiskVerification: 0, 
+            electricalCompliance: 0 
+          },
+          { 
+            name: 'Q2', 
+            nearMissRate: 0, 
+            criticalRiskVerification: 0, 
+            electricalCompliance: 0 
+          },
+        ];
+        setKpiData(placeholderKpiData);
+        setDataLoading(false);
+        return;
       }
+      
+      // Extract unique periods and organize chronologically
+      const periods = extractUniquePeriods(filteredReports);
+      
+      // Process data by period
+      processIncidentDataByPeriod(filteredReports, periods);
+      processKpiDataByPeriod(filteredReports, periods);
+      
+      setError(null);
+      setDataLoading(false);
     } catch (err) {
-      // Just return the original string if we can't format it
+      console.error('Error loading trend data:', err);
+      setError(err.message);
+      setDataLoading(false);
+      
+      // Only set fallback data if we don't already have data
+      if (incidentData.length === 0) {
+        // Set fallback data on error
+        const fallbackData = [
+          { name: 'Q1', incidents: 0, nearMisses: 0 },
+          { name: 'Q2', incidents: 0, nearMisses: 0 },
+        ];
+        setIncidentData(fallbackData);
+        
+        const fallbackKpiData = [
+          { 
+            name: 'Q1', 
+            nearMissRate: 0, 
+            criticalRiskVerification: 0, 
+            electricalCompliance: 0 
+          },
+          { 
+            name: 'Q2', 
+            nearMissRate: 0, 
+            criticalRiskVerification: 0, 
+            electricalCompliance: 0 
+          },
+        ];
+        setKpiData(fallbackKpiData);
+      }
     }
-    
-    return periodString;
-  };
+  }, [
+    lastFetchTime, 
+    incidentData.length, 
+    periodFilter, 
+    companyFilter, 
+    filterReports, 
+    extractUniquePeriods, 
+    processIncidentDataByPeriod, 
+    processKpiDataByPeriod
+  ]);
 
   useEffect(() => {
     // Initial data load
@@ -340,7 +418,7 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
     return () => clearInterval(intervalId);
   }, [loadTrendData]);
 
-  // Reset last fetch time when period filter changes to force reload
+  // Reset last fetch time when period filter or company filter changes to force reload
   useEffect(() => {
     setLastFetchTime(0);
   }, [periodFilter, companyFilter]);
@@ -352,7 +430,10 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
   return (
     <div className="space-y-8">
       <div className="p-4 bg-white rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">Incident & Near Miss Trends</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          Incident & Near Miss Trends
+          {companyFilter && <span className="text-sm font-normal text-blue-600 ml-2">({companyFilter})</span>}
+        </h2>
         {incidentData.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No incident data available</p>
         ) : (
@@ -384,7 +465,10 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
       </div>
 
       <div className="p-4 bg-white rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">KPI Trends</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          KPI Trends
+          {companyFilter && <span className="text-sm font-normal text-blue-600 ml-2">({companyFilter})</span>}
+        </h2>
         {kpiData.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No KPI data available</p>
         ) : (
