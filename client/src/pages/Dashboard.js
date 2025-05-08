@@ -6,7 +6,7 @@ import TrendCharts from '../components/dashboard/ImprovedTrendCharts';
 import DeepSeekAIPanel from '../components/dashboard/DeepSeekAIPanel';
 import PeriodSelector from '../components/dashboard/PeriodSelector';
 import { fetchMetricsSummary, fetchReports, fetchMetricsForPeriod } from '../components/services/api';
-import { formatPeriodDisplay, getPeriodTimestamp, getPeriodColor } from '/client/src/components/dashboard/periodUtils.js';
+import { formatPeriodDisplay, getPeriodTimestamp, getPeriodColor } from '../utils/periodUtils.js';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
