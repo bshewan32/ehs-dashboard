@@ -1,0 +1,2 @@
+setLastFetchTime(0);
+}, []);

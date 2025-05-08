@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
 import { fetchReports } from '../services/api';
+import { parseReportPeriod } from '../utils/periodUtils';
 
-const TrendCharts = ({ periodFilter }) => {
+const TrendCharts = ({ periodFilter, companyFilter }) => {
   const [incidentData, setIncidentData] = useState([]);
   const [kpiData, setKpiData] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -15,114 +16,90 @@ const TrendCharts = ({ periodFilter }) => {
     return period;
   };
 
-  // Function to filter reports based on periodFilter
-  const filterReportsByPeriod = useCallback((reports, periodValue) => {
-    if (!periodValue || !reports || reports.length === 0) {
+  // Function to filter reports based on periodFilter and companyFilter
+  const filterReports = useCallback((reports, periodValue, company) => {
+    if (!reports || reports.length === 0) {
       return reports;
     }
-
-    const currentDate = new Date();
     
-    switch (periodValue.type) {
-      case 'month':
-        // Filter for specific month and year
-        return reports.filter(report => {
-          // Parse report period - assuming format like "May 2025" or "Q2 2025"
-          const reportDate = parseReportPeriod(report.reportPeriod);
-          
-          if (!reportDate) return false;
-          
-          return reportDate.getMonth() === periodValue.month && 
-                 reportDate.getFullYear() === periodValue.year;
-        });
-        
-      case 'range':
-        // Filter for last X months
-        const monthsAgo = new Date();
-        monthsAgo.setMonth(currentDate.getMonth() - periodValue.months);
-        
-        return reports.filter(report => {
-          const reportDate = parseReportPeriod(report.reportPeriod);
-          if (!reportDate) return false;
-          
-          return reportDate >= monthsAgo;
-        });
-        
-      case 'quarter':
-        // Filter for specific quarter
-        const quarterStartMonth = (periodValue.quarter - 1) * 3;
-        const quarterEndMonth = quarterStartMonth + 2;
-        
-        return reports.filter(report => {
-          // For quarterly reports, check if it's directly a quarterly report
-          if (report.reportType === 'Quarterly' && report.reportPeriod.includes(`Q${periodValue.quarter}`)) {
-            return true;
-          }
-          
-          // For monthly reports, check if the month falls in the quarter
-          const reportDate = parseReportPeriod(report.reportPeriod);
-          if (!reportDate) return false;
-          
-          const month = reportDate.getMonth();
-          return month >= quarterStartMonth && 
-                 month <= quarterEndMonth && 
-                 reportDate.getFullYear() === periodValue.year;
-        });
-        
-      case 'ytd':
-        // Filter for current year
-        const yearStart = new Date(currentDate.getFullYear(), 0, 1);
-        
-        return reports.filter(report => {
-          const reportDate = parseReportPeriod(report.reportPeriod);
-          if (!reportDate) return false;
-          
-          return reportDate >= yearStart;
-        });
-        
-      case 'all':
-      default:
-        // No filtering
-        return reports;
-    }
-  }, []);
-
-  // Helper function to parse report period strings
-  const parseReportPeriod = (periodString) => {
-    if (!periodString) return null;
+    // First apply period filter
+    let filteredReports = reports;
     
-    // Handle quarterly reports like "Q1 2025"
-    if (periodString.startsWith('Q')) {
-      const quarterMatch = periodString.match(/Q(\d)\s+(\d{4})/);
-      if (quarterMatch) {
-        const quarter = parseInt(quarterMatch[1]);
-        const year = parseInt(quarterMatch[2]);
-        const month = (quarter - 1) * 3; // Q1=0, Q2=3, Q3=6, Q4=9
-        return new Date(year, month, 1);
-      }
-    }
-    
-    // Handle monthly reports like "May 2025" or "05/2025"
-    try {
-      // Try parsing as month name and year
-      const date = new Date(periodString);
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
+    if (periodValue) {
+      const currentDate = new Date();
       
-      // Try parsing as MM/YYYY
-      const parts = periodString.split('/');
-      if (parts.length === 2) {
-        const month = parseInt(parts[0]) - 1; // JS months are 0-based
-        const year = parseInt(parts[1]);
-        return new Date(year, month, 1);
+      switch (periodValue.type) {
+        case 'month':
+          // Filter for specific month and year
+          filteredReports = filteredReports.filter(report => {
+            // Parse report period - assuming format like "May 2025" or "Q2 2025"
+            const reportDate = parseReportPeriod(report.reportPeriod);
+            
+            if (!reportDate) return false;
+            
+            return reportDate.getMonth() === periodValue.month && 
+                   reportDate.getFullYear() === periodValue.year;
+          });
+          break;
+          
+        case 'range':
+          // Filter for last X months
+          const monthsAgo = new Date();
+          monthsAgo.setMonth(currentDate.getMonth() - periodValue.months);
+          
+          filteredReports = filteredReports.filter(report => {
+            const reportDate = parseReportPeriod(report.reportPeriod);
+            if (!reportDate) return false;
+            
+            return reportDate >= monthsAgo;
+          });
+          break;
+          
+        case 'quarter':
+          // Filter for specific quarter
+          const quarterStartMonth = (periodValue.quarter - 1) * 3;
+          const quarterEndMonth = quarterStartMonth + 2;
+          
+          filteredReports = filteredReports.filter(report => {
+            // For quarterly reports, check if it's directly a quarterly report
+            if (report.reportType === 'Quarterly' && report.reportPeriod.includes(`Q${periodValue.quarter}`)) {
+              return true;
+            }
+            
+            // For monthly reports, check if the month falls in the quarter
+            const reportDate = parseReportPeriod(report.reportPeriod);
+            if (!reportDate) return false;
+            
+            const month = reportDate.getMonth();
+            return month >= quarterStartMonth && 
+                   month <= quarterEndMonth && 
+                   reportDate.getFullYear() === periodValue.year;
+          });
+          break;
+          
+        case 'ytd':
+          // Filter for current year
+          const yearStart = new Date(currentDate.getFullYear(), 0, 1);
+          
+          filteredReports = filteredReports.filter(report => {
+            const reportDate = parseReportPeriod(report.reportPeriod);
+            if (!reportDate) return false;
+            
+            return reportDate >= yearStart;
+          });
+          break;
+          
+        // No filtering for 'all' or default
       }
-    } catch (err) {
-      console.error('Error parsing report period:', periodString, err);
     }
     
-    return null;
-  };
+    // Then apply company filter if provided
+    if (company) {
+      filteredReports = filteredReports.filter(report => report.companyName === company);
+    }
+    
+    return filteredReports;
+  }, []);
 
   // Create memoized load function to prevent unnecessary rerenders
   const loadTrendData = useCallback(async () => {
@@ -137,10 +114,8 @@ const TrendCharts = ({ periodFilter }) => {
       const reports = await fetchReports();
       setLastFetchTime(now);
       
-      // Filter reports based on period filter if provided
-      const filteredReports = periodFilter 
-        ? filterReportsByPeriod(reports, periodFilter)
-        : reports;
+      // Filter reports based on both period and company filters
+      const filteredReports = filterReports(reports, periodFilter, companyFilter);
         
       console.log(`Using ${filteredReports.length} of ${reports.length} reports for trend charts`);
       
@@ -172,77 +147,13 @@ const TrendCharts = ({ periodFilter }) => {
         return;
       }
       
-      // Process incident data with fallbacks for different data structures
-      const trendData = filteredReports.map((report) => {
-        // First try regular structure
-        let incidents = report.metrics?.lagging?.incidentCount;
-        if (incidents === undefined) {
-          // Try flattened structure
-          incidents = report.metrics?.totalIncidents;
-        }
-        if (incidents === undefined) {
-          // Last resort direct property
-          incidents = report.totalIncidents;
-        }
-        incidents = incidents ?? 0;
-
-        // Same fallback pattern for near misses
-        let nearMisses = report.metrics?.lagging?.nearMissCount;
-        if (nearMisses === undefined) {
-          nearMisses = report.metrics?.totalNearMisses;
-        }
-        if (nearMisses === undefined) {
-          nearMisses = report.totalNearMisses;
-        }
-        nearMisses = nearMisses ?? 0;
-
-        return {
-          name: formatPeriod(report.reportPeriod),
-          incidents: incidents,
-          nearMisses: nearMisses,
-        };
-      });
-
-      // Sort data chronologically if possible
-      const sortedData = [...trendData].sort((a, b) => {
-        // Simple quarter comparison (Q1, Q2, etc)
-        if (a.name.startsWith('Q') && b.name.startsWith('Q')) {
-          return a.name.localeCompare(b.name);
-        }
-        // Default to original order
-        return 0;
-      });
-
-      setIncidentData(sortedData);
-
-      // Process KPI data with proper fallbacks
-      const kpiTrend = filteredReports.map((report) => {
-        // Try different possible KPI data paths
-        const kpis = report.metrics?.leading?.kpis || report.kpis || [];
-        
-        // Find metrics with fallbacks
-        const findMetric = (id, defaultValue = 0) => {
-          const kpi = kpis.find(k => k.id === id);
-          return kpi?.actual ?? defaultValue;
-        };
-
-        return {
-          name: formatPeriod(report.reportPeriod),
-          nearMissRate: findMetric('nearMissRate'),
-          criticalRiskVerification: findMetric('criticalRiskVerification'),
-          electricalCompliance: findMetric('electricalSafetyCompliance'),
-        };
-      });
-
-      // Sort KPI data the same way
-      const sortedKpiData = [...kpiTrend].sort((a, b) => {
-        if (a.name.startsWith('Q') && b.name.startsWith('Q')) {
-          return a.name.localeCompare(b.name);
-        }
-        return 0;
-      });
-
-      setKpiData(sortedKpiData);
+      // Extract unique periods and organize chronologically
+      const periods = extractUniquePeriods(filteredReports);
+      
+      // Process data by period
+      processIncidentDataByPeriod(filteredReports, periods);
+      processKpiDataByPeriod(filteredReports, periods);
+      
       setError(null);
       setDataLoading(false);
     } catch (err) {
@@ -276,7 +187,180 @@ const TrendCharts = ({ periodFilter }) => {
         setKpiData(fallbackKpiData);
       }
     }
-  }, [lastFetchTime, incidentData.length, periodFilter, filterReportsByPeriod]);
+  }, [lastFetchTime, incidentData.length, periodFilter, companyFilter, filterReports]);
+
+  // Extract unique periods from reports and sort them chronologically
+  const extractUniquePeriods = (reports) => {
+    // Create a map of period string to date object for sorting
+    const periodMap = new Map();
+    
+    reports.forEach(report => {
+      const periodString = report.reportPeriod;
+      const date = parseReportPeriod(periodString);
+      
+      if (date) {
+        periodMap.set(periodString, date);
+      } else {
+        // If we can't parse the date, still include the period
+        periodMap.set(periodString, new Date(0)); // Use epoch as fallback
+      }
+    });
+    
+    // Sort periods by date
+    const sortedPeriods = [...periodMap.entries()].sort((a, b) => a[1] - b[1]);
+    
+    // Return the sorted period strings
+    return sortedPeriods.map(entry => entry[0]);
+  };
+
+  // Process incident data by period
+  const processIncidentDataByPeriod = (reports, sortedPeriods) => {
+    // Create data structure with all periods
+    const periodData = sortedPeriods.map(period => ({
+      name: formatPeriodForDisplay(period),
+      rawPeriod: period,
+      incidents: 0,
+      nearMisses: 0,
+      companies: new Set() // Track companies for averaging
+    }));
+    
+    // Aggregate data by period
+    reports.forEach(report => {
+      const periodIndex = sortedPeriods.findIndex(p => p === report.reportPeriod);
+      
+      if (periodIndex !== -1) {
+        const periodEntry = periodData[periodIndex];
+        periodEntry.companies.add(report.companyName);
+        
+        // Add incident counts
+        const incidentCount = report.metrics?.lagging?.incidentCount ?? 
+                              report.metrics?.totalIncidents ?? 0;
+        periodEntry.incidents += incidentCount;
+        
+        // Add near miss counts
+        const nearMissCount = report.metrics?.lagging?.nearMissCount ?? 
+                              report.metrics?.totalNearMisses ?? 0;
+        periodEntry.nearMisses += nearMissCount;
+      }
+    });
+    
+    // If not filtering by company, average the data by number of companies in each period
+    if (!companyFilter) {
+      periodData.forEach(period => {
+        const companyCount = period.companies.size || 1;
+        period.incidents = Math.round(period.incidents / companyCount);
+        period.nearMisses = Math.round(period.nearMisses / companyCount);
+        delete period.companies; // Remove the set before setting state
+      });
+    } else {
+      // If filtering by company, just remove the companies set
+      periodData.forEach(period => {
+        delete period.companies;
+      });
+    }
+    
+    setIncidentData(periodData);
+  };
+
+  // Process KPI data by period
+  const processKpiDataByPeriod = (reports, sortedPeriods) => {
+    // Create data structure with all periods
+    const periodData = sortedPeriods.map(period => ({
+      name: formatPeriodForDisplay(period),
+      rawPeriod: period,
+      nearMissRate: 0,
+      criticalRiskVerification: 0,
+      electricalCompliance: 0,
+      kpiCounts: {
+        nearMissRate: 0,
+        criticalRiskVerification: 0,
+        electricalCompliance: 0
+      },
+      companies: new Set() // Track companies for averaging
+    }));
+    
+    // Aggregate data by period
+    reports.forEach(report => {
+      const periodIndex = sortedPeriods.findIndex(p => p === report.reportPeriod);
+      
+      if (periodIndex !== -1) {
+        const periodEntry = periodData[periodIndex];
+        periodEntry.companies.add(report.companyName);
+        
+        // Get KPIs from the report
+        const kpis = report.metrics?.leading?.kpis || [];
+        
+        // Process each KPI
+        kpis.forEach(kpi => {
+          switch (kpi.id) {
+            case 'nearMissRate':
+              periodEntry.nearMissRate += kpi.actual || 0;
+              periodEntry.kpiCounts.nearMissRate++;
+              break;
+            case 'criticalRiskVerification':
+              periodEntry.criticalRiskVerification += kpi.actual || 0;
+              periodEntry.kpiCounts.criticalRiskVerification++;
+              break;
+            case 'electricalSafetyCompliance':
+              periodEntry.electricalCompliance += kpi.actual || 0;
+              periodEntry.kpiCounts.electricalCompliance++;
+              break;
+          }
+        });
+      }
+    });
+    
+    // Calculate averages
+    periodData.forEach(period => {
+      // Average each KPI by the number of reports that had it
+      period.nearMissRate = period.kpiCounts.nearMissRate > 0 
+        ? period.nearMissRate / period.kpiCounts.nearMissRate 
+        : 0;
+        
+      period.criticalRiskVerification = period.kpiCounts.criticalRiskVerification > 0 
+        ? period.criticalRiskVerification / period.kpiCounts.criticalRiskVerification 
+        : 0;
+        
+      period.electricalCompliance = period.kpiCounts.electricalCompliance > 0 
+        ? period.electricalCompliance / period.kpiCounts.electricalCompliance 
+        : 0;
+      
+      // Round values to 1 decimal place
+      period.nearMissRate = Math.round(period.nearMissRate * 10) / 10;
+      period.criticalRiskVerification = Math.round(period.criticalRiskVerification * 10) / 10;
+      period.electricalCompliance = Math.round(period.electricalCompliance * 10) / 10;
+      
+      // Clean up helper properties
+      delete period.kpiCounts;
+      delete period.companies;
+    });
+    
+    setKpiData(periodData);
+  };
+
+  // Format period string for better display
+  const formatPeriodForDisplay = (periodString) => {
+    if (!periodString) return 'Unknown';
+    
+    // Handle quarterly reports (Q1 2025)
+    if (periodString.match(/^Q[1-4]\s+\d{4}$/)) {
+      return periodString;
+    }
+    
+    // Try to format into shorter month format
+    try {
+      const date = parseReportPeriod(periodString);
+      if (date) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${months[date.getMonth()]} ${date.getFullYear()}`;
+      }
+    } catch (err) {
+      // Just return the original string if we can't format it
+    }
+    
+    return periodString;
+  };
 
   useEffect(() => {
     // Initial data load
@@ -289,10 +373,10 @@ const TrendCharts = ({ periodFilter }) => {
     return () => clearInterval(intervalId);
   }, [loadTrendData]);
 
-  // Reset last fetch time when period filter changes to force reload
+  // Reset last fetch time when period filter or company filter changes to force reload
   useEffect(() => {
     setLastFetchTime(0);
-  }, [periodFilter]);
+  }, [periodFilter, companyFilter]);
 
   if (dataLoading && incidentData.length === 0) {
     return <div className="text-center py-10">Loading trend data...</div>;
@@ -301,7 +385,10 @@ const TrendCharts = ({ periodFilter }) => {
   return (
     <div className="space-y-8">
       <div className="p-4 bg-white rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">Incident & Near Miss Trends</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          Incident & Near Miss Trends
+          {companyFilter && <span className="text-sm font-normal text-blue-600 ml-2">({companyFilter})</span>}
+        </h2>
         {incidentData.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No incident data available</p>
         ) : (
@@ -333,7 +420,10 @@ const TrendCharts = ({ periodFilter }) => {
       </div>
 
       <div className="p-4 bg-white rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">KPI Trends</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          KPI Trends
+          {companyFilter && <span className="text-sm font-normal text-blue-600 ml-2">({companyFilter})</span>}
+        </h2>
         {kpiData.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No KPI data available</p>
         ) : (

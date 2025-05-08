@@ -5,8 +5,9 @@ import KPIOverview from '../components/dashboard/KPIOverview';
 import TrendCharts from '../components/dashboard/ImprovedTrendCharts';
 import DeepSeekAIPanel from '../components/dashboard/DeepSeekAIPanel';
 import PeriodSelector from '../components/dashboard/PeriodSelector';
+import CompanyFilter from '../components/dashboard/CompanyFilter';
 import { fetchMetricsSummary, fetchReports, fetchMetricsForPeriod } from '../components/services/api';
-import { formatPeriodDisplay, getPeriodTimestamp, getPeriodColor } from '../utils/periodUtils.js';
+import { formatPeriodDisplay, getPeriodTimestamp, getPeriodColor, parseReportPeriod } from '../utils/periodUtils.js';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [exporting, setExporting] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('current');
   const [periodFilter, setPeriodFilter] = useState(null);
+  const [companyFilter, setCompanyFilter] = useState(null);
 
   // Setup default KPIs to ensure they're always available
   const defaultKpis = [
@@ -52,6 +54,12 @@ export default function Dashboard() {
     setPeriodFilter(periodValue);
     
     // Force a refresh of the data
+    setLastFetchTime(0);
+  }, []);
+  
+  const handleCompanyChange = useCallback((company) => {
+    console.log('Company changed:', company);
+    setCompanyFilter(company);
     setLastFetchTime(0);
   }, []);
 
@@ -126,43 +134,6 @@ export default function Dashboard() {
         return allReports;
     }
   }, []);
-
-  // Helper function to parse report period strings
-  const parseReportPeriod = (periodString) => {
-    if (!periodString) return null;
-    
-    // Handle quarterly reports like "Q1 2025"
-    if (periodString.startsWith('Q')) {
-      const quarterMatch = periodString.match(/Q(\d)\s+(\d{4})/);
-      if (quarterMatch) {
-        const quarter = parseInt(quarterMatch[1]);
-        const year = parseInt(quarterMatch[2]);
-        const month = (quarter - 1) * 3; // Q1=0, Q2=3, Q3=6, Q4=9
-        return new Date(year, month, 1);
-      }
-    }
-    
-    // Handle monthly reports like "May 2025" or "05/2025"
-    try {
-      // Try parsing as month name and year
-      const date = new Date(periodString);
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-      
-      // Try parsing as MM/YYYY
-      const parts = periodString.split('/');
-      if (parts.length === 2) {
-        const month = parseInt(parts[0]) - 1; // JS months are 0-based
-        const year = parseInt(parts[1]);
-        return new Date(year, month, 1);
-      }
-    } catch (err) {
-      console.error('Error parsing report period:', periodString, err);
-    }
-    
-    return null;
-  };
 
   // Function to aggregate metrics from multiple reports
   const aggregateMetrics = useCallback((filteredReports) => {
@@ -384,14 +355,22 @@ export default function Dashboard() {
       {/* Period Controls and Info */}
       <div className="bg-white p-4 rounded-lg shadow">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-          <div className="w-full md:w-1/3 mb-4 md:mb-0">
-            <PeriodSelector 
-              onPeriodChange={handlePeriodChange}
-              selectedPeriod={selectedPeriod}
-            />
+          <div className="flex flex-col md:flex-row gap-4 w-full md:w-2/3">
+            <div className="w-full md:w-1/2">
+              <PeriodSelector 
+                onPeriodChange={handlePeriodChange}
+                selectedPeriod={selectedPeriod}
+              />
+            </div>
+            <div className="w-full md:w-1/2">
+              <CompanyFilter 
+                onChange={handleCompanyChange}
+                selectedCompany={companyFilter}
+              />
+            </div>
           </div>
           
-          <div className="space-y-2">
+          <div className="space-y-2 mt-4 md:mt-0">
             <div className={`inline-block px-3 py-1 rounded-full border ${getPeriodColor(selectedPeriod)}`}>
               {formatPeriodDisplay(selectedPeriod, periodFilter)}
             </div>
