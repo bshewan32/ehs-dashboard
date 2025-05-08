@@ -16,13 +16,15 @@ router.post('/deepseek', async (req, res) => {
   try {
     // Check if DeepSeek API key is configured
     if (!DEEPSEEK_API_KEY) {
-      return res.status(500).json({ 
+      console.log('DeepSeek API key not configured, returning fallback recommendations');
+      return res.status(200).json({ 
         error: 'DeepSeek API key not configured',
         recommendations: generateFallbackRecommendations(req.body.metrics, req.body.companyName)
       });
     }
     
     const { metrics, companyName, period } = req.body;
+    console.log(`Generating insights for ${companyName || 'All Companies'} during ${period || 'All Time'}`);
     
     // Format the metrics data for the prompt
     const metricsDescription = formatMetricsForPrompt(metrics);
@@ -50,44 +52,57 @@ router.post('/deepseek', async (req, res) => {
     Format each recommendation as a single paragraph. Be specific, data-driven, and provide insights that would not be obvious from just looking at the numbers.
     `;
     
-    // Make the DeepSeek API request using native fetch
-    const deepseekResponse = await fetch(DEEPSEEK_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: 'You are an expert safety consultant providing actionable insights based on EHS metrics.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000
-      })
-    });
-    
-    if (!deepseekResponse.ok) {
-      throw new Error(`DeepSeek API error: ${deepseekResponse.status} ${deepseekResponse.statusText}`);
+    try {
+      // Make the DeepSeek API request using native fetch
+      console.log('Calling DeepSeek API...');
+      const deepseekResponse = await fetch(DEEPSEEK_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: 'You are an expert safety consultant providing actionable insights based on EHS metrics.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 1000
+        })
+      });
+      
+      if (!deepseekResponse.ok) {
+        console.error(`DeepSeek API error: ${deepseekResponse.status} ${deepseekResponse.statusText}`);
+        throw new Error(`DeepSeek API error: ${deepseekResponse.status} ${deepseekResponse.statusText}`);
+      }
+      
+      // Parse the JSON response
+      const deepseekData = await deepseekResponse.json();
+      console.log('Received response from DeepSeek API');
+      
+      // Extract and process the insights
+      const content = deepseekData.choices[0].message.content;
+      
+      // Split the content into separate recommendations
+      const recommendations = content
+        .split('\n\n')
+        .filter(item => item.trim().length > 0)
+        .map(item => item.trim());
+      
+      // Return the recommendations
+      return res.json({ recommendations });
+    } catch (apiError) {
+      console.error('Error calling external API:', apiError);
+      // Generate fallback insights
+      const fallbackRecommendations = generateFallbackRecommendations(metrics, companyName);
+      return res.status(200).json({ 
+        error: 'Failed to call DeepSeek API',
+        recommendations: fallbackRecommendations
+      });
     }
-    
-    // Parse the JSON response
-    const deepseekData = await deepseekResponse.json();
-    
-    // Extract and process the insights
-    const content = deepseekData.choices[0].message.content;
-    
-    // Split the content into separate recommendations
-    const recommendations = content
-      .split('\n\n')
-      .filter(item => item.trim().length > 0)
-      .map(item => item.trim());
-    
-    // Return the recommendations
-    return res.json({ recommendations });
   } catch (error) {
-    console.error('Error generating AI insights:', error);
+    console.error('Error in route handler:', error);
     
     // Generate fallback insights
     const fallbackRecommendations = generateFallbackRecommendations(
@@ -95,8 +110,8 @@ router.post('/deepseek', async (req, res) => {
       req.body.companyName
     );
     
-    return res.status(500).json({ 
-      error: 'Failed to generate AI insights',
+    return res.status(200).json({ 
+      error: 'General error processing request',
       recommendations: fallbackRecommendations
     });
   }

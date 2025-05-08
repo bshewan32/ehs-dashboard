@@ -33,8 +33,20 @@ app.get('/', (req, res) => {
 // Routes
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/inspections', require('./routes/inspections'));
-app.use('/api/ai', require('./routes/ai')); // Original AI route
-app.use('/api/ai', require('./routes/deepseekAI')); // New DeepSeek AI route
+app.use('/api/ai', require('./routes/ai')); // AI route
+
+// Only add the DeepSeek route if the file exists and API key is configured
+try {
+  const fs = require('fs');
+  if (fs.existsSync('./routes/deepseekAI.js') && process.env.DEEPSEEK_API_KEY) {
+    console.log('Loading DeepSeek AI route');
+    app.use('/api/ai', require('./routes/deepseekAI')); 
+  } else {
+    console.log('DeepSeek AI route not loaded: File missing or API key not configured');
+  }
+} catch (err) {
+  console.error('Error loading DeepSeek AI route:', err);
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

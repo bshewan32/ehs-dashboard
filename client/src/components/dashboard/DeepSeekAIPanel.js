@@ -40,48 +40,60 @@ const DeepSeekAIPanel = ({ metrics, selectedPeriod, companyName }) => {
     }
   }, [selectedPeriod, companyName]);
 
-  // Function to call DeepSeek API
-  const fetchRecommendationsFromAPI = useCallback(async (metricsData) => {
-    try {
-      setLoadingRecommendations(true);
-      
-      // Format the metrics data for the API
-      const formattedMetrics = formatMetricsForPrompt(metricsData);
-      
-      // Call DeepSeek API
-      const response = await fetch('/api/ai/deepseek', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          metrics: formattedMetrics,
-          companyName: companyName || 'All Companies',
-          period: selectedPeriod || 'All Time'
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('DeepSeek API response:', data);
-      
+
+// In your DeepSeekAIPanel.js, update the fetchRecommendationsFromAPI function:
+
+const fetchRecommendationsFromAPI = useCallback(async (metricsData) => {
+  try {
+    setLoadingRecommendations(true);
+    
+    // Format the metrics data for the API
+    const formattedMetrics = formatMetricsForPrompt(metricsData);
+    
+    // Get the correct API URL
+    const apiUrl = process.env.REACT_APP_API_URL || '';
+    
+    // Call DeepSeek API
+    console.log('Sending request to DeepSeek API endpoint');
+    const response = await fetch(`${apiUrl}/api/ai/deepseek`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        metrics: formattedMetrics,
+        companyName: companyName || 'All Companies',
+        period: selectedPeriod || 'All Time'
+      })
+    });
+    
+    if (!response.ok) {
+      console.error(`API error: ${response.status}`);
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('DeepSeek API response:', data);
+    
+    if (data.recommendations && Array.isArray(data.recommendations)) {
+      return data.recommendations;
+    } else if (data.error) {
+      console.warn('API returned error:', data.error);
+      // If the API returned recommendations despite the error, use those
       if (data.recommendations && Array.isArray(data.recommendations)) {
         return data.recommendations;
-      } else if (data.error) {
-        throw new Error(data.error);
-      } else {
-        return generateFallbackRecommendations(metricsData);
       }
-    } catch (err) {
-      console.error('Error calling DeepSeek API:', err);
-      throw err; // Rethrow to be handled by caller
-    } finally {
-      setLoadingRecommendations(false);
+      throw new Error(data.error);
+    } else {
+      return generateFallbackRecommendations(metricsData);
     }
-  }, [companyName, selectedPeriod]);
+  } catch (err) {
+    console.error('Error calling DeepSeek API:', err);
+    throw err; // Rethrow to be handled by caller
+  } finally {
+    setLoadingRecommendations(false);
+  }
+}, [companyName, selectedPeriod]);
 
   // Format metrics for API prompt
   const formatMetricsForPrompt = (metrics) => {
@@ -99,42 +111,80 @@ const DeepSeekAIPanel = ({ metrics, selectedPeriod, companyName }) => {
     };
   };
 
-  // Generate fallback recommendations if API call fails
-  const generateFallbackRecommendations = (metrics) => {
-    if (!metrics) return [];
-    
-    const recommendations = [];
-    const companyContext = companyName ? ` for ${companyName}` : '';
-    
-    // Extract metrics data
-    const incidentCount = metrics.lagging?.incidentCount || metrics.totalIncidents || 0;
-    const nearMissCount = metrics.lagging?.nearMissCount || metrics.totalNearMisses || 0;
-    const trainingCompliance = metrics.trainingCompliance || 0;
-    
-    // Generate recommendations based on metrics
-    if (incidentCount > 5) {
-      recommendations.push(`The high number of incidents${companyContext} (${incidentCount}) suggests potential systemic issues in risk controls. Consider conducting a comprehensive risk assessment focusing on areas with recurring incidents, and implement targeted control measures to address the root causes.`);
-    }
-    
-    if (nearMissCount < 3) {
-      recommendations.push(`The low near miss reporting${companyContext} (${nearMissCount}) may indicate underreporting of safety concerns. Develop a positive safety culture by implementing a non-punitive reporting system and regularly emphasizing the importance of near miss reporting as a preventive measure.`);
-    }
-    
-    if (trainingCompliance < 80) {
-      recommendations.push(`Training compliance${companyContext} is below target at ${trainingCompliance}%. Inadequate training is often a contributing factor in workplace incidents. Identify barriers to training completion and consider implementing a more accessible training program or dedicated time allocations for safety training.`);
-    }
-    
-    if (incidentCount === 0 && nearMissCount === 0) {
-      recommendations.push(`The absence of reported incidents and near misses${companyContext} may indicate excellent safety performance, but could also suggest reporting gaps. Conduct an audit to validate reporting processes and consider implementing positive incentives for safety observation reporting to ensure all safety concerns are captured.`);
-    }
-    
-    // Add default recommendation if no specific ones were generated
-    if (recommendations.length === 0) {
-      recommendations.push(`Based on the current metrics${companyContext}, no significant safety concerns are identified. However, to drive continuous improvement, consider conducting regular safety perception surveys to identify potential safety culture gaps not captured in quantitative metrics.`);
-    }
-    
-    return recommendations;
-  };
+  // Replace the current generateFallbackRecommendations function with this improved version
+
+// Generate fallback recommendations if API call fails
+const generateFallbackRecommendations = (metrics) => {
+  if (!metrics) return [];
+  
+  const recommendations = [];
+  const companyContext = companyName ? ` for ${companyName}` : '';
+  const periodContext = selectedPeriod ? ` during the ${selectedPeriod} period` : '';
+  
+  // Extract metrics data with proper fallbacks
+  const incidentCount = metrics.lagging?.incidentCount || metrics.totalIncidents || 0;
+  const nearMissCount = metrics.lagging?.nearMissCount || metrics.totalNearMisses || 0;
+  const firstAidCount = metrics.lagging?.firstAidCount || metrics.firstAidCount || 0;
+  const medicalTreatmentCount = metrics.lagging?.medicalTreatmentCount || metrics.medicalTreatmentCount || 0;
+  const trainingCompliance = metrics.trainingCompliance || 0;
+  const riskScore = metrics.riskScore || 0;
+  
+  // Get KPI values if available
+  const kpis = metrics.leading?.kpis || [];
+  const nearMissRate = kpis.find(k => k.id === 'nearMissRate')?.actual || 0;
+  const criticalRiskVerification = kpis.find(k => k.id === 'criticalRiskVerification')?.actual || 0;
+  const electricalSafetyCompliance = kpis.find(k => k.id === 'electricalSafetyCompliance')?.actual || 0;
+  
+  // Generate recommendations based on metrics
+  if (incidentCount > 5) {
+    recommendations.push(`The high number of incidents${companyContext}${periodContext} (${incidentCount}) suggests potential systemic issues in risk controls. Consider conducting a comprehensive risk assessment focusing on areas with recurring incidents, and implement targeted control measures to address the root causes. Prioritize high-risk areas identified in previous reports to allocate resources effectively.`);
+  }
+  
+  // Recommendation based on near misses
+  if (nearMissCount < 3) {
+    recommendations.push(`The low near miss reporting${companyContext}${periodContext} (${nearMissCount}) may indicate underreporting of safety concerns. Develop a positive safety culture by implementing a non-punitive reporting system and regularly emphasizing the importance of near miss reporting as a preventive measure. Consider introducing a simplified reporting process through mobile applications or QR codes to make reporting more accessible.`);
+  } else if (nearMissCount > 15) {
+    recommendations.push(`While the high number of near misses${companyContext}${periodContext} (${nearMissCount}) demonstrates good reporting culture, it may indicate underlying hazards that require attention. Analyze the near miss data to identify patterns and implement preventive controls. Create a categorization system for near misses based on potential severity to prioritize follow-up actions appropriately.`);
+  }
+  
+  // Training compliance recommendation
+  if (trainingCompliance < 80) {
+    recommendations.push(`Training compliance${companyContext} is below target at ${trainingCompliance}%. Inadequate training is often a contributing factor in workplace incidents. Identify barriers to training completion and consider implementing a more accessible training program or dedicated time allocations for safety training. Develop role-specific training matrices to ensure all employees receive training relevant to their specific job hazards.`);
+  }
+  
+  // First aid and medical treatment recommendation
+  if (firstAidCount > 0 || medicalTreatmentCount > 0) {
+    recommendations.push(`The presence of ${firstAidCount} first aid ${firstAidCount === 1 ? 'case' : 'cases'} and ${medicalTreatmentCount} medical ${medicalTreatmentCount === 1 ? 'treatment' : 'treatments'}${companyContext}${periodContext} indicates opportunities for injury prevention. Conduct a detailed analysis of these incidents to identify common causes and implement targeted prevention strategies. Consider ergonomic assessments in areas with repetitive strain injuries and review personal protective equipment requirements for tasks associated with cuts or abrasions.`);
+  }
+  
+  // KPI-based recommendations
+  if (criticalRiskVerification < 90) {
+    recommendations.push(`Critical Risk Control Verification${companyContext} is at ${criticalRiskVerification}%, below the target of 95%. Critical controls for high-consequence hazards should be prioritized to prevent serious injuries or fatalities. Implement a verification program that includes management reviews, scheduled inspections, and spot checks to ensure critical controls remain effective. Focus particularly on life-saving controls such as energy isolation, working at heights protections, and machine guarding.`);
+  }
+  
+  if (electricalSafetyCompliance < 95) {
+    recommendations.push(`Electrical Safety Compliance${companyContext} is at ${electricalSafetyCompliance}%, which requires immediate attention given the high-risk nature of electrical hazards. Conduct a thorough review of electrical safety procedures, ensure proper lockout/tagout implementation, and verify that all electrical work is performed by qualified personnel. Consider implementing an electrical safety audit program with specialized checklists to target common electrical hazards.`);
+  }
+  
+  // Risk score recommendation
+  if (riskScore > 50) {
+    recommendations.push(`The elevated risk score of ${riskScore}${companyContext} suggests a need for more robust risk management. Implement a formal risk register that tracks identified hazards, associated controls, and verification activities. Prioritize resources based on risk levels and ensure regular review of high-risk activities. Consider adopting a bow-tie analysis method for critical risks to visualize prevention and mitigation measures more effectively.`);
+  }
+  
+  // If no incidents/near misses
+  if (incidentCount === 0 && nearMissCount === 0) {
+    recommendations.push(`The absence of reported incidents and near misses${companyContext}${periodContext} may indicate excellent safety performance, but could also suggest reporting gaps. Conduct an audit to validate reporting processes and consider implementing positive incentives for safety observation reporting to ensure all safety concerns are captured. Benchmark your reporting rates against industry standards to evaluate reporting effectiveness.`);
+  }
+  
+  // Add default recommendation if no specific ones were generated
+  if (recommendations.length === 0) {
+    recommendations.push(`Based on the current metrics${companyContext}${periodContext}, no significant safety concerns are identified. However, to drive continuous improvement, consider conducting regular safety perception surveys to identify potential safety culture gaps not captured in quantitative metrics. Implementing leading indicators such as percent of required inspections completed and management safety walks can provide earlier warning signs before incidents occur.`);
+  }
+  
+  // Limit to 3-5 recommendations
+  return recommendations.slice(0, Math.min(5, recommendations.length));
+};
+
 
   // Check local storage for cached recommendations
   const getCachedRecommendations = useCallback((hash) => {
