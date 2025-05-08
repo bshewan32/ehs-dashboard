@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
 import { fetchReports } from '../services/api';
-import { parseReportPeriod } from '../utils/periodUtils';
+import { parseReportPeriod } from '../components/dashboard/periodUtils';
 
 const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
   const [incidentData, setIncidentData] = useState([]);
