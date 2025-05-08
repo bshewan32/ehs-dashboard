@@ -7,7 +7,7 @@ import DeepSeekAIPanel from '../components/dashboard/DeepSeekAIPanel';
 import PeriodSelector from '../components/dashboard/PeriodSelector';
 import CompanyFilter from '../components/dashboard/CompanyFilter';
 import { fetchMetricsSummary, fetchReports, fetchMetricsForPeriod } from '../components/services/api';
-import { formatPeriodDisplay, getPeriodTimestamp, getPeriodColor, parseReportPeriod } from '../utils/periodUtils.js';
+import { formatPeriodDisplay, getPeriodTimestamp, getPeriodColor } from '../utils/periodUtils.js';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
