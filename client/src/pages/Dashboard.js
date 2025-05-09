@@ -10,6 +10,8 @@ import { fetchMetricsSummary, fetchReports, fetchMetricsForPeriod } from '../com
 import { formatPeriodDisplay, getPeriodTimestamp, getPeriodColor } from '../utils/periodUtils.js';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import NavigationButtons from '../components/dashboard/NavigationButtons';
+
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
@@ -331,7 +333,7 @@ export default function Dashboard() {
       setExporting(false);
     }
   };
-  
+    
   // Add this function to your Dashboard.js file, right next to your other functions:
 
 // Helper function to parse report period strings
@@ -432,17 +434,21 @@ const parseReportPeriod = (periodString) => {
         </div>
       ) : null}
 
-      <div className="space-y-6">
-        {/* Pass the metrics explicitly to each component */}
-        <MetricsOverview metrics={metrics} />
-        <KPIOverview metrics={metrics} />
-        <TrendCharts periodFilter={periodFilter} companyFilter={companyFilter} />
-        <DeepSeekAIPanel 
-          metrics={metrics} 
-          selectedPeriod={selectedPeriod} 
-          companyName={companyFilter} 
-        />
-      </div>
+      // Replace it with:
+        <div className="space-y-6">
+          {/* Navigation Buttons */}
+          <NavigationButtons />
+          
+          {/* Pass the metrics explicitly to each component */}
+          <MetricsOverview metrics={metrics} />
+          <KPIOverview metrics={metrics} />
+          <TrendCharts periodFilter={periodFilter} companyFilter={companyFilter} />
+          <DeepSeekAIPanel 
+            metrics={metrics} 
+            selectedPeriod={selectedPeriod} 
+            companyName={companyFilter} 
+          />
+        </div>
     </div>
   );
 }
