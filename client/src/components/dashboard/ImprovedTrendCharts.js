@@ -52,6 +52,30 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
     return null;
   };
 
+  // Format period string for better display
+  const formatPeriodForDisplay = (periodString) => {
+    if (!periodString) return 'Unknown';
+    
+    // Handle quarterly reports (Q1 2025)
+    if (periodString.match(/^Q[1-4]\s+\d{4}$/)) {
+      return periodString;
+    }
+    
+    // Try to format into shorter month format
+    try {
+      const date = parseReportPeriod(periodString);
+      if (date) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${months[date.getMonth()]} ${date.getFullYear()}`;
+      }
+    } catch (err) {
+      // Just return the original string if we can't format it
+    }
+    
+    return periodString;
+  };
+
   // Function to filter reports based on periodFilter and companyFilter
   const filterReports = useCallback((reports, periodValue, company) => {
     if (!reports || reports.length === 0) {
@@ -126,6 +150,8 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
           break;
           
         // No filtering for 'all' or default
+        default:
+          break;
       }
     }
     
@@ -159,30 +185,6 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
     
     // Return the sorted period strings
     return sortedPeriods.map(entry => entry[0]);
-  }, []);
-
-  // Format period string for better display
-  const formatPeriodForDisplay = useCallback((periodString) => {
-    if (!periodString) return 'Unknown';
-    
-    // Handle quarterly reports (Q1 2025)
-    if (periodString.match(/^Q[1-4]\s+\d{4}$/)) {
-      return periodString;
-    }
-    
-    // Try to format into shorter month format
-    try {
-      const date = parseReportPeriod(periodString);
-      if (date) {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        return `${months[date.getMonth()]} ${date.getFullYear()}`;
-      }
-    } catch (err) {
-      // Just return the original string if we can't format it
-    }
-    
-    return periodString;
   }, []);
 
   // Process incident data by period
@@ -232,7 +234,7 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
     }
     
     setIncidentData(periodData);
-  }, [companyFilter, formatPeriodForDisplay]);
+  }, [companyFilter]);
 
   // Process KPI data by period
   const processKpiDataByPeriod = useCallback((reports, sortedPeriods) => {
@@ -277,6 +279,9 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
               periodEntry.electricalCompliance += kpi.actual || 0;
               periodEntry.kpiCounts.electricalCompliance++;
               break;
+            default:
+              // Skip other KPIs
+              break;
           }
         });
       }
@@ -308,7 +313,7 @@ const ImprovedTrendCharts = ({ periodFilter, companyFilter }) => {
     });
     
     setKpiData(periodData);
-  }, [companyFilter, formatPeriodForDisplay]);
+  }, [companyFilter]);
 
   // Create memoized load function to prevent unnecessary rerenders
   const loadTrendData = useCallback(async () => {

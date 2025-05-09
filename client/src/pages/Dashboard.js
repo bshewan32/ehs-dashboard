@@ -434,7 +434,7 @@ const parseReportPeriod = (periodString) => {
         </div>
       ) : null}
 
-      // Replace it with:
+      
         <div className="space-y-6">
           {/* Navigation Buttons */}
           <NavigationButtons />
