@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import TrainingComplianceWidget from '../components/dashboard/TrainingComplianceWidget';
+import InspectionsWidget from '../components/dashboard/InspectionsWidget';
 import MetricsOverview from '../components/dashboard/MetricsOverview';
 import KPIOverview from '../components/dashboard/KPIOverview';
 import TrendCharts from '../components/dashboard/ImprovedTrendCharts';
@@ -433,14 +435,20 @@ const parseReportPeriod = (periodString) => {
           <div className="mt-2">Using fallback data for display purposes.</div>
         </div>
       ) : null}
-
-      
+        
         <div className="space-y-6">
           {/* Navigation Buttons */}
           <NavigationButtons />
           
           {/* Pass the metrics explicitly to each component */}
           <MetricsOverview metrics={metrics} />
+          
+          {/* New widgets in a 2-column grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TrainingComplianceWidget metrics={metrics} />
+            <InspectionsWidget periodFilter={periodFilter} companyFilter={companyFilter} />
+          </div>
+          
           <KPIOverview metrics={metrics} />
           <TrendCharts periodFilter={periodFilter} companyFilter={companyFilter} />
           <DeepSeekAIPanel 
