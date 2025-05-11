@@ -6,7 +6,7 @@ import ReportForm from './components/forms/ReportForm';
 import InspectionsPage from './pages/InspectionsPage';
 import ReportsPage from './pages/ReportsPage';
 import TrainingPage from './pages/TrainingPage';
-import DebugPage from './pages/DebugPage';
+
 
 function App() {
   return (
@@ -22,7 +22,6 @@ function App() {
           <Route path="/inspections" element={<InspectionsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/training" element={<TrainingPage />} />
-          <Route path="/debug" element={<DebugPage />} />
         </Routes>
       </div>
     </Router>
