@@ -1,206 +1,248 @@
 // client/src/components/training/TrainingUploader.js
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 
 const TrainingUploader = ({ onDataProcessed }) => {
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState(null);
-
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // Check if file is an Excel file
-    const validTypes = [
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel.sheet.macroEnabled.12'
-    ];
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState(null);
+  const [fileInfo, setFileInfo] = useState(null);
+  
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
     
-    if (!validTypes.includes(file.type)) {
-      setUploadError('Please upload a valid Excel file (.xls or .xlsx)');
+    if (!file) return;
+    
+    // Reset previous states
+    setUploading(true);
+    setError(null);
+    setFileInfo({
+      name: file.name,
+      size: formatFileSize(file.size),
+      type: file.type
+    });
+    
+    // Check file type
+    if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      setError('Please upload a CSV or Excel file');
+      setUploading(false);
       return;
     }
-
-    try {
-      setIsUploading(true);
-      setUploadError(null);
-      
-      // Read the Excel file
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-          
-          // Get the first worksheet
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          
-          // Convert to JSON
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
-          
-          // Process the training data
-          const processedData = processTrainingData(jsonData);
-          
-          // Pass the processed data up to parent component
-          if (onDataProcessed) {
-            onDataProcessed(processedData);
-          }
-          
-          setIsUploading(false);
-        } catch (error) {
-          console.error('Error processing Excel file:', error);
-          setUploadError('Failed to process the Excel file. Please check the format.');
-          setIsUploading(false);
-        }
-      };
-      
-      reader.onerror = () => {
-        setUploadError('Failed to read the file');
-        setIsUploading(false);
-      };
-      
-      reader.readAsArrayBuffer(file);
-    } catch (error) {
-      console.error('Error handling file upload:', error);
-      setUploadError('An error occurred during file upload');
-      setIsUploading(false);
+    
+    // For CSV files, use Papa Parse
+    if (file.name.endsWith('.csv')) {
+      processCSV(file);
+    } else {
+      // For Excel files, we would need an Excel parser
+      // This is a placeholder for future implementation
+      setError('Excel files are not currently supported. Please convert to CSV.');
+      setUploading(false);
     }
   };
-
-  // Process the training data to calculate compliance metrics
-  const processTrainingData = (trainingRecords) => {
-    if (!trainingRecords || trainingRecords.length === 0) {
-      return { 
-        records: [], 
-        compliance: 0, 
-        upcomingRenewals: [], 
-        stats: { total: 0, completed: 0, expired: 0, upcoming: 0 } 
-      };
-    }
-
-    const today = new Date();
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(today.getDate() + 30);
-
-    let completed = 0;
-    let expired = 0;
-    let upcoming = 0;
-    const upcomingRenewals = [];
-
-    // Normalize and process each record
-    const normalizedRecords = trainingRecords.map(record => {
-      // Expected fields: Employee, TrainingType, CompletionDate, ExpirationDate, Status
-      const normalizedRecord = {
-        employee: record.Employee || record.employee || '',
-        trainingType: record.TrainingType || record['Training Type'] || record.trainingType || '',
-        completionDate: record.CompletionDate || record['Completion Date'] || record.completionDate || null,
-        expirationDate: record.ExpirationDate || record['Expiration Date'] || record.expirationDate || null,
-        status: record.Status || record.status || ''
-      };
-
-      // Convert dates if they're strings
-      if (normalizedRecord.completionDate && !(normalizedRecord.completionDate instanceof Date)) {
-        normalizedRecord.completionDate = new Date(normalizedRecord.completionDate);
-      }
-      
-      if (normalizedRecord.expirationDate && !(normalizedRecord.expirationDate instanceof Date)) {
-        normalizedRecord.expirationDate = new Date(normalizedRecord.expirationDate);
-      }
-
-      // Determine status if not explicitly provided
-      if (!normalizedRecord.status) {
-        if (!normalizedRecord.completionDate) {
-          normalizedRecord.status = 'Not Started';
-        } else if (!normalizedRecord.expirationDate) {
-          normalizedRecord.status = 'Completed';
-          completed++;
-        } else if (normalizedRecord.expirationDate < today) {
-          normalizedRecord.status = 'Expired';
-          expired++;
-        } else if (normalizedRecord.expirationDate <= thirtyDaysFromNow) {
-          normalizedRecord.status = 'Due Soon';
-          upcoming++;
-          
-          // Add to upcoming renewals list
-          upcomingRenewals.push({
-            employee: normalizedRecord.employee,
-            trainingType: normalizedRecord.trainingType,
-            expirationDate: normalizedRecord.expirationDate,
-            daysRemaining: Math.floor((normalizedRecord.expirationDate - today) / (1000 * 60 * 60 * 24))
-          });
-        } else {
-          normalizedRecord.status = 'Current';
-          completed++;
-        }
-      } else if (['Completed', 'Current', 'Valid'].includes(normalizedRecord.status)) {
-        completed++;
-      } else if (normalizedRecord.status === 'Expired') {
-        expired++;
-      } else if (['Due Soon', 'Renew'].includes(normalizedRecord.status)) {
-        upcoming++;
-        
-        // Add to upcoming renewals list if we have an expiration date
-        if (normalizedRecord.expirationDate) {
-          upcomingRenewals.push({
-            employee: normalizedRecord.employee,
-            trainingType: normalizedRecord.trainingType,
-            expirationDate: normalizedRecord.expirationDate,
-            daysRemaining: Math.floor((normalizedRecord.expirationDate - today) / (1000 * 60 * 60 * 24))
-          });
-        }
-      }
-
-      return normalizedRecord;
-    });
-
-    const total = normalizedRecords.length;
-    const compliance = total > 0 ? (completed / total) * 100 : 0;
-
-    // Sort upcoming renewals by days remaining (ascending)
-    upcomingRenewals.sort((a, b) => a.daysRemaining - b.daysRemaining);
-
-    return {
-      records: normalizedRecords,
-      compliance: compliance,
-      upcomingRenewals: upcomingRenewals,
-      stats: {
-        total,
-        completed,
-        expired,
-        upcoming
+  
+  const processCSV = (file) => {
+    // Use FileReader to read the file
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        // Parse CSV data
+        Papa.parse(e.target.result, {
+          header: true,
+          dynamicTyping: true,
+          skipEmptyLines: true,
+          transformHeader: (header) => {
+            // Normalize header names by removing spaces and making camelCase
+            return header.trim()
+              .replace(/\s+(.)/g, (match, group) => group.toUpperCase())
+              .replace(/\s/g, '')
+              .replace(/^(.)/, (match, group) => group.toLowerCase());
+          },
+          complete: (results) => {
+            if (results.errors.length > 0) {
+              console.error('CSV parse errors:', results.errors);
+              setError(`CSV parse error: ${results.errors[0].message}`);
+              setUploading(false);
+              return;
+            }
+            
+            console.log('CSV parsed successfully with', results.data.length, 'records');
+            
+            // Validate data
+            if (results.data.length === 0) {
+              setError('No data found in the CSV file');
+              setUploading(false);
+              return;
+            }
+            
+            // Map parsed data to our training record structure
+            const trainingData = results.data.map(record => {
+              return processTrainingRecord(record);
+            }).filter(record => record.employee && record.courseTitle);
+            
+            console.log('Processed', trainingData.length, 'valid training records');
+            
+            if (trainingData.length === 0) {
+              setError('No valid training records found in the file. Each record must have an employee name and course title.');
+              setUploading(false);
+              return;
+            }
+            
+            // Send the processed data back to parent component
+            onDataProcessed(trainingData);
+            setUploading(false);
+          },
+          error: (error) => {
+            console.error('Error parsing CSV:', error);
+            setError(`Error parsing CSV: ${error.message}`);
+            setUploading(false);
+          }
+        });
+      } catch (error) {
+        console.error('Error processing file:', error);
+        setError(`Error processing file: ${error.message}`);
+        setUploading(false);
       }
     };
+    
+    reader.onerror = () => {
+      setError('Error reading file');
+      setUploading(false);
+    };
+    
+    reader.readAsText(file);
   };
-
+  
+  // Process a training record to standardize fields
+  const processTrainingRecord = (record) => {
+    // Map common variations of field names
+    const employeeName = record.employee || record.employeeName || record.name || '';
+    const courseTitle = record.courseTitle || record.course || record.training || '';
+    
+    // Parse dates
+    let completionDate = null;
+    if (record.completionDate || record.completed || record.dateCompleted) {
+      completionDate = parseDate(record.completionDate || record.completed || record.dateCompleted);
+    }
+    
+    let expiryDate = null;
+    if (record.expiryDate || record.expiry || record.expires) {
+      expiryDate = parseDate(record.expiryDate || record.expiry || record.expires);
+    }
+    
+    // Determine status
+    let status = record.status || 'Completed'; // Default to completed
+    
+    // If expiry date exists and is in the past, mark as expired
+    if (expiryDate && new Date(expiryDate) < new Date()) {
+      status = 'Expired';
+    }
+    
+    // Return standardized record
+    return {
+      employee: employeeName,
+      courseTitle: courseTitle,
+      completionDate: completionDate,
+      expiryDate: expiryDate,
+      status: status,
+      department: record.department || '',
+      assignedBy: record.assignedBy || record.assignee || '',
+      courseType: record.courseType || record.type || ''
+    };
+  };
+  
+  // Helper to parse dates in various formats
+  const parseDate = (dateStr) => {
+    if (!dateStr) return null;
+    
+    // Convert numeric Excel dates (days since 1/1/1900)
+    if (typeof dateStr === 'number') {
+      // Excel date origin is 1/1/1900, but Excel treats 1900 as a leap year incorrectly
+      // So we need to adjust by subtracting 1 for dates after 2/28/1900
+      const excelEpoch = new Date(1900, 0, 1);
+      const daysSinceEpoch = dateStr - (dateStr > 60 ? 1 : 0);
+      const milliseconds = daysSinceEpoch * 24 * 60 * 60 * 1000;
+      return new Date(excelEpoch.getTime() + milliseconds).toISOString().split('T')[0];
+    }
+    
+    // Handle string date formats
+    try {
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
+    } catch (e) {
+      console.warn(`Could not parse date: ${dateStr}`);
+    }
+    
+    return null;
+  };
+  
+  // Format file size for display
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+  
   return (
-    <div className="mb-4">
-      <div className="flex items-center space-x-3">
-        <label htmlFor="training-file-upload" className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition-colors">
-          {isUploading ? 'Processing...' : 'Upload Training Data'}
-          <input
-            id="training-file-upload"
-            type="file"
-            className="hidden"
-            accept=".xlsx,.xls"
-            onChange={handleFileUpload}
-            disabled={isUploading}
-          />
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <h3 className="text-lg font-semibold mb-4">Upload Training Data</h3>
+      
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Upload CSV File
         </label>
-        <span className="text-sm text-gray-600">
-          Upload an Excel file with training records
-        </span>
+        <input
+          type="file"
+          accept=".csv"
+          onChange={handleFileChange}
+          className="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100"
+          disabled={uploading}
+        />
       </div>
       
-      {uploadError && (
-        <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
-          {uploadError}
+      {fileInfo && (
+        <div className="mb-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+          <div className="text-sm text-gray-700">
+            <div><span className="font-medium">File:</span> {fileInfo.name}</div>
+            <div><span className="font-medium">Size:</span> {fileInfo.size}</div>
+            <div><span className="font-medium">Type:</span> {fileInfo.type}</div>
+          </div>
         </div>
       )}
       
-      <div className="mt-2 text-xs text-gray-500">
-        Required columns: Employee, TrainingType, CompletionDate, ExpirationDate (optional), Status (optional)
+      {uploading && (
+        <div className="flex items-center justify-center py-4">
+          <svg className="animate-spin h-5 w-5 text-blue-600 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span>Processing file...</span>
+        </div>
+      )}
+      
+      {error && (
+        <div className="bg-red-50 text-red-700 p-3 rounded border border-red-200 mt-3">
+          {error}
+        </div>
+      )}
+      
+      <div className="mt-4 text-sm text-gray-600">
+        <p className="font-medium">CSV Format Requirements:</p>
+        <ul className="list-disc list-inside pl-4 mt-1">
+          <li>Headers should include: Employee, CourseTitle, CompletionDate</li>
+          <li>Optional headers: ExpiryDate, Status, Department, AssignedBy, CourseType</li>
+          <li>Dates can be in any standard format (YYYY-MM-DD recommended)</li>
+        </ul>
       </div>
     </div>
   );
