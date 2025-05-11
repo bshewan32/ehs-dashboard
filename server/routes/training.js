@@ -1,4 +1,4 @@
-// server/routes/training.js
+// server/routes/training.js did not upload?
 const express = require('express');
 const router = express.Router();
 const trainingController = require('../controllers/trainingController');
