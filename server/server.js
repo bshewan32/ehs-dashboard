@@ -9,20 +9,52 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(express.json());
 
-// Enable CORS for your frontend
+// Enable CORS for all origins in development, or specified frontend in production
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://ehs-dashboard.vercel.app',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if(!origin) return callback(null, true);
+    
+    // Allowed origins list - use comma-separated list in ALLOWED_ORIGINS env var
+    const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
+      process.env.ALLOWED_ORIGINS.split(',') : 
+      ['https://ehs-dashboard.vercel.app', 'http://localhost:3000'];
+    
+    if(allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy violation'));
+    }
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// MongoDB Connection
+// MongoDB Connection with more detailed logging
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 }).then(() => {
-  console.log('Connected to MongoDB');
+  console.log('✅ Connected to MongoDB successfully');
+  
+  // Log environment info for debugging
+  console.log('Server environment:');
+  console.log(`- NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+  console.log(`- CORS allowed origins: ${process.env.ALLOWED_ORIGINS || 'default list'}`);
+  console.log(`- Frontend URL: ${process.env.FRONTEND_URL || 'not set'}`);
+  console.log(`- Port: ${PORT}`);
+  
+  // Verify the Training model is registered
+  const models = mongoose.modelNames();
+  console.log('Registered MongoDB models:', models);
+  if (models.includes('Training')) {
+    console.log('✅ Training model is properly registered');
+  } else {
+    console.warn('⚠️ Training model is not registered!');
+  }
 }).catch((err) => {
-  console.error('MongoDB connection error:', err);
+  console.error('❌ MongoDB connection error:', err);
 });
 
 // Root Route (basic health check)

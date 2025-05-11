@@ -1,6 +1,9 @@
 // client/src/components/services/trainingApi.js
 const api_url = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
+// Log API URL for debugging
+console.log('Training API URL:', api_url);
+
 // Cache for API responses
 const trainingCache = {
   data: null,
@@ -39,18 +42,24 @@ export const saveTrainingData = async (trainingData) => {
     // Clear cache to ensure fresh data on next fetch
     trainingCache.data = null;
     
-    // Send to backend API
+    console.log('Saving training data to:', `${api_url}/api/training`);
+    
+    // Send to backend API with CORS mode explicitly set
     const response = await fetch(`${api_url}/api/training`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(trainingData),
+      mode: 'cors',
+      credentials: 'include'
     });
     
     if (!response.ok) {
+      console.error('Server response not OK:', response.status, response.statusText);
       throw new Error(`Failed to save training data: ${response.status} ${response.statusText}`);
     }
     
     const result = await response.json();
+    console.log('Training data saved successfully:', result);
     return result;
   } catch (error) {
     console.error('Error saving training data:', error);
@@ -62,6 +71,7 @@ export const saveTrainingData = async (trainingData) => {
         timestamp: Date.now()
       }));
       
+      console.log('Training data saved to localStorage due to API error');
       return { success: true, message: 'Training data saved locally (API unavailable)' };
     } catch (localError) {
       console.error('Failed to save to localStorage:', localError);
@@ -103,9 +113,14 @@ export const fetchTrainingData = async (forceRefresh = false) => {
       return trainingCache.data;
     }
     
-    // Try to fetch from API
+    console.log('Fetching training data from:', `${api_url}/api/training`);
+    
+    // Try to fetch from API with explicit CORS settings
     const response = await fetch(`${api_url}/api/training`, {
+      method: 'GET',
       headers: getHeaders(),
+      mode: 'cors',
+      credentials: 'include'
     });
     
     if (response.status === 404) {
@@ -114,10 +129,12 @@ export const fetchTrainingData = async (forceRefresh = false) => {
     }
     
     if (!response.ok) {
+      console.error('Server response not OK:', response.status, response.statusText);
       throw new Error(`Failed to fetch training data: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
+    console.log('Training data fetched successfully:', data);
     
     // Cache the fetched data
     trainingCache.data = data;
@@ -132,6 +149,7 @@ export const fetchTrainingData = async (forceRefresh = false) => {
       const storedData = localStorage.getItem('trainingData');
       if (storedData) {
         const { data } = JSON.parse(storedData);
+        console.log('Using training data from localStorage');
         
         // Cache the data
         trainingCache.data = data;
@@ -151,15 +169,23 @@ export const fetchTrainingData = async (forceRefresh = false) => {
 // Fetch training metrics summary (used for quick access to compliance metrics)
 export const fetchTrainingMetrics = async () => {
   try {
+    console.log('Fetching training metrics from:', `${api_url}/api/training/metrics`);
+    
     const response = await fetch(`${api_url}/api/training/metrics`, {
+      method: 'GET',
       headers: getHeaders(),
+      mode: 'cors',
+      credentials: 'include'
     });
     
     if (!response.ok) {
+      console.error('Server response not OK:', response.status, response.statusText);
       throw new Error(`Failed to fetch training metrics: ${response.status} ${response.statusText}`);
     }
     
-    return await response.json();
+    const data = await response.json();
+    console.log('Training metrics fetched successfully:', data);
+    return data;
   } catch (error) {
     console.error('Error fetching training metrics:', error);
     return {

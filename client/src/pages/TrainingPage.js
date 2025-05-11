@@ -37,15 +37,35 @@ const TrainingPage = () => {
   // Handle data from the uploader component
   const handleTrainingDataProcessed = async (data) => {
     setTrainingData(data);
+    setError(null); // Clear any previous errors
     
     try {
-      // Save the processed data to the server (if needed)
-      await saveTrainingData(data);
+      console.log('Processing training data before API save:', data);
+      
+      // Save the processed data to the server
+      const result = await saveTrainingData(data);
+      console.log('Server response after saving:', result);
+      
+      // Set success message
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
+      
+      // Refresh data from server to confirm it was saved correctly
+      setTimeout(async () => {
+        try {
+          const refreshedData = await fetchTrainingData(true);
+          if (refreshedData) {
+            console.log('Refreshed training data after save:', refreshedData);
+            setTrainingData(refreshedData);
+          }
+        } catch (refreshError) {
+          console.warn('Could not refresh data after save:', refreshError);
+          // Continue using the locally processed data
+        }
+      }, 1000);
     } catch (err) {
       console.error('Error saving training data:', err);
-      setError('Failed to save training data, but it\'s available for your current session');
+      setError(`Failed to save training data to server: ${err.message}. Data is available for your current session only.`);
     }
   };
 
@@ -76,14 +96,29 @@ const TrainingPage = () => {
         <div className="bg-red-50 border-l-4 border-red-500 p-4 text-red-700">
           <p className="font-bold">Error</p>
           <p>{error}</p>
+          <div className="mt-2 text-sm">
+            <button 
+              onClick={() => setError(null)} 
+              className="text-red-700 underline hover:text-red-800"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 
       {saveSuccess && (
         <div className="bg-green-50 border-l-4 border-green-500 p-4 text-green-700">
+          <p className="font-bold">Success</p>
           <p>Training data saved successfully!</p>
         </div>
       )}
+      
+      <div className="bg-blue-50 border-l-4 border-blue-500 p-4 text-blue-700 mb-4">
+        <p className="font-bold">Connection Information</p>
+        <p>API URL: {process.env.REACT_APP_API_URL || 'http://localhost:5000'}</p>
+        <p className="text-xs mt-1">If you're experiencing connection issues, check that this API URL is correct.</p>
+      </div>
 
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4">Upload Training Certificate Data</h2>
