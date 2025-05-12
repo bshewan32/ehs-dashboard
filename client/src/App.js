@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import ReportForm from './components/forms/ReportForm';
 import InspectionsPage from './pages/InspectionsPage';
+import InspectionForm from './components/forms/InspectionFormPage'
 import ReportsPage from './pages/ReportsPage';
 import TrainingPage from './pages/TrainingPage';
 
@@ -20,6 +21,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/report/new" element={<ReportForm />} />
           <Route path="/inspections" element={<InspectionsPage />} />
+          <Route path="/inspections/new" element={<InspectionForm />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/training" element={<TrainingPage />} />
         </Routes>
