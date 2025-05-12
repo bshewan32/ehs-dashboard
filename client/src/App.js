@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import ReportForm from './components/forms/ReportForm';
 import InspectionsPage from './pages/InspectionsPage';
 import InspectionForm from './components/forms/InspectionFormPage'
+import InspectionDetailsPage from './pages/InspectionDetailsPage';
 import ReportsPage from './pages/ReportsPage';
 import TrainingPage from './pages/TrainingPage';
 
@@ -22,6 +23,7 @@ function App() {
           <Route path="/report/new" element={<ReportForm />} />
           <Route path="/inspections" element={<InspectionsPage />} />
           <Route path="/inspections/new" element={<InspectionForm />} />
+          <Route path="/inspections/:id" element={<InspectionDetailsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/training" element={<TrainingPage />} />
         </Routes>
