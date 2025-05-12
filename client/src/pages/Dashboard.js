@@ -256,16 +256,29 @@ export default function Dashboard() {
 
     try {
       setLoading(true);
-      
+
       // Fetch reports for the trend charts
       const allReports = await fetchReports();
       console.log(`Fetched ${allReports.length} reports`);
       setReports(allReports);
-      
+
       // Use the specialized metrics fetch function that handles periods
       const periodMetrics = await fetchMetricsForPeriod(periodFilter, true);
       console.log('Fetched metrics for period:', selectedPeriod);
-      
+
+      // Add training data to metrics
+      try {
+        // Import needed only for this function
+        const { fetchTrainingData } = await import('../components/services/trainingApi');
+        const trainingData = await fetchTrainingData(true);
+        if (trainingData) {
+          console.log('Adding training data to metrics:', trainingData);
+          periodMetrics.trainingData = trainingData;
+        }
+      } catch (trainingError) {
+        console.error('Error fetching training data:', trainingError);
+      }
+
       setMetrics(periodMetrics);
       setLastFetchTime(now);
       setError(null);
@@ -566,7 +579,7 @@ export default function Dashboard() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <TrainingComplianceWidget metrics={metrics} />
+              <TrainingComplianceWidget trainingData={metrics?.trainingData} />
               <InspectionsWidget periodFilter={periodFilter} companyFilter={companyFilter} />
             </div>
           </section>
