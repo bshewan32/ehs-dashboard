@@ -1,3 +1,5 @@
+
+
 // client/src/components/training/TrainingComplianceDisplay.js
 import React, { useState } from 'react';
 
