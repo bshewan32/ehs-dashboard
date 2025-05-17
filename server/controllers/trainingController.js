@@ -257,8 +257,10 @@ exports.getTrainingMetrics = async (req, res) => {
   try {
     // Get company ID from query params or default to 'default'
     const companyId = req.query.companyId || 'default';
+    // Check if we should include archived records
+    const includeArchived = req.query.includeArchived === 'true';
     
-    console.log(`Fetching training metrics for company: ${companyId}`);
+    console.log(`Fetching training metrics for company: ${companyId}, includeArchived: ${includeArchived}`);
     
     // Find the most recent training data entry
     const trainingData = await TrainingData.findOne({ companyId }).sort({ createdAt: -1 });
@@ -273,13 +275,36 @@ exports.getTrainingMetrics = async (req, res) => {
       });
     }
     
+    // Filter records based on archived status if needed
+    let records = trainingData.records || [];
+    if (!includeArchived) {
+      records = records.filter(record => !record.archived);
+    }
+    
+    // Calculate metrics from non-archived records
+    const total = records.length;
+    const completed = records.filter(r => r.status === 'Completed').length;
+    const expired = records.filter(r => r.status === 'Expired').length;
+    
+    // Calculate upcoming renewals (similar logic to the saveTrainingData function)
+    const now = new Date();
+    const ninetyDaysFromNow = new Date(now);
+    ninetyDaysFromNow.setDate(now.getDate() + 90);
+    
+    const upcomingRenewals = records
+      .filter(r => 
+        r.expiryDate && 
+        new Date(r.expiryDate) > now && 
+        new Date(r.expiryDate) <= ninetyDaysFromNow
+      ).length;
+    
     // Extract key metrics
     const metrics = {
-      trainingCompliance: trainingData.compliance || 0,
-      upcomingRenewals: trainingData.stats?.upcoming || 0,
-      expiredCertificates: trainingData.stats?.expired || 0,
-      totalCertificates: trainingData.stats?.total || 0,
-      completedCertificates: trainingData.stats?.completed || 0
+      trainingCompliance: total > 0 ? Math.round((completed / total) * 100) : 0,
+      upcomingRenewals: upcomingRenewals,
+      expiredCertificates: expired,
+      totalCertificates: total,
+      completedCertificates: completed
     };
     
     console.log('Training metrics calculated:', metrics);
@@ -291,6 +316,120 @@ exports.getTrainingMetrics = async (req, res) => {
       trainingCompliance: 0,
       upcomingRenewals: 0,
       expiredCertificates: 0,
+      error: error.message
+    });
+  }
+};
+
+// Archive a training record
+exports.archiveTrainingRecord = async (req, res) => {
+  try {
+    // Get company ID and record ID from request
+    const companyId = req.body.companyId || req.query.companyId || 'default';
+    const recordId = req.params.id;
+    
+    if (!recordId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Record ID is required'
+      });
+    }
+    
+    console.log(`Archiving training record ${recordId} for company ${companyId}`);
+    
+    // Find the most recent training data entry
+    const trainingData = await TrainingData.findOne({ companyId }).sort({ createdAt: -1 });
+    
+    if (!trainingData) {
+      return res.status(404).json({
+        success: false,
+        message: 'No training data found'
+      });
+    }
+    
+    // Find the record by its ID
+    const recordIndex = trainingData.records.findIndex(record => record._id.toString() === recordId);
+    
+    if (recordIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Training record not found'
+      });
+    }
+    
+    // Set the archived flag to true
+    trainingData.records[recordIndex].archived = true;
+    
+    // Save the updated training data
+    await trainingData.save();
+    
+    // Return success response
+    res.status(200).json({
+      success: true,
+      message: 'Training record archived successfully'
+    });
+  } catch (error) {
+    console.error('Error archiving training record:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Unarchive a training record
+exports.unarchiveTrainingRecord = async (req, res) => {
+  try {
+    // Get company ID and record ID from request
+    const companyId = req.body.companyId || req.query.companyId || 'default';
+    const recordId = req.params.id;
+    
+    if (!recordId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Record ID is required'
+      });
+    }
+    
+    console.log(`Unarchiving training record ${recordId} for company ${companyId}`);
+    
+    // Find the most recent training data entry
+    const trainingData = await TrainingData.findOne({ companyId }).sort({ createdAt: -1 });
+    
+    if (!trainingData) {
+      return res.status(404).json({
+        success: false,
+        message: 'No training data found'
+      });
+    }
+    
+    // Find the record by its ID
+    const recordIndex = trainingData.records.findIndex(record => record._id.toString() === recordId);
+    
+    if (recordIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Training record not found'
+      });
+    }
+    
+    // Set the archived flag to false
+    trainingData.records[recordIndex].archived = false;
+    
+    // Save the updated training data
+    await trainingData.save();
+    
+    // Return success response
+    res.status(200).json({
+      success: true,
+      message: 'Training record unarchived successfully'
+    });
+  } catch (error) {
+    console.error('Error unarchiving training record:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
       error: error.message
     });
   }

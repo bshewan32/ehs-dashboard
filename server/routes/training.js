@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const trainingController = require('../controllers/trainingController');
+const TrainingData = require('../models/Training');
 
 // Debug middleware to log request details
 router.use((req, res, next) => {
@@ -62,20 +63,37 @@ router.post('/records', async (req, res) => {
       });
     }
     
-    // Create a new training record
-    const newRecord = new TrainingRecord({
+    // Get company ID from body or default to 'default'
+    const companyId = req.body.companyId || 'default';
+    
+    // Find the most recent training data entry
+    const trainingData = await TrainingData.findOne({ companyId }).sort({ createdAt: -1 });
+    
+    if (!trainingData) {
+      return res.status(404).json({
+        success: false,
+        message: 'No training data found to add record to'
+      });
+    }
+    
+    // Create new record object
+    const newRecord = {
       employee: req.body.employee,
-      courseTitle: req.body.courseTitle,
-      courseType: req.body.courseType || '',
+      trainingType: req.body.courseTitle, // Map to the schema field
       status: req.body.status,
       completionDate: req.body.completionDate || null,
-      expiryDate: req.body.expiryDate || null,
-      department: req.body.department || '',
-      notes: req.body.notes || ''
-    });
+      expirationDate: req.body.expiryDate || null, // Map to the schema field
+      archived: false
+    };
     
-    // Save the record to the database
-    const savedRecord = await newRecord.save();
+    // Add the new record to the existing records array
+    trainingData.records.push(newRecord);
+    
+    // Save the updated training data
+    await trainingData.save();
+    
+    // Get the newly added record (it will be the last one in the array)
+    const savedRecord = trainingData.records[trainingData.records.length - 1];
     
     // Return success response with the saved record
     res.status(201).json({

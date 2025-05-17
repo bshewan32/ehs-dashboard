@@ -25,6 +25,10 @@ const TrainingRecordSchema = new mongoose.Schema({
     type: String,
     enum: ['Not Started', 'Completed', 'Current', 'Expired', 'Due Soon', 'Valid', 'Renew'],
     default: 'Not Started'
+  },
+  archived: {
+    type: Boolean,
+    default: false
   }
 });
 
