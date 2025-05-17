@@ -234,6 +234,8 @@ export const fetchTrainingData = async (forceRefresh = false) => {
 
 // Add this function to client/src/components/services/trainingApi.js
 
+// Add this function to client/src/components/services/trainingApi.js
+
 /**
  * Add a single training record to the database
  * @param {Object} record - The training record to add
@@ -241,8 +243,19 @@ export const fetchTrainingData = async (forceRefresh = false) => {
  */
 export const addTrainingRecord = async (record) => {
   try {
+    // Get the API URL from environment variable or use default
+    const api_url = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+    
     // Set up headers
-    const headers = getHeaders();
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    // Add authorization if available
+    const token = localStorage.getItem('token');
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
 
     // Send POST request to create the record
     const response = await fetch(`${api_url}/api/training/records`, {
@@ -253,16 +266,6 @@ export const addTrainingRecord = async (record) => {
 
     if (!response.ok) {
       throw new Error(`Failed to add training record: ${response.status} ${response.statusText}`);
-    }
-
-    // Clear the cache after adding a record
-    if (apiCache && apiCache.training) {
-      apiCache.training.data = null;
-    }
-    
-    // Mark data as changed if the function exists
-    if (typeof markDataChanged === 'function') {
-      markDataChanged();
     }
 
     // Return the newly added record with its ID
