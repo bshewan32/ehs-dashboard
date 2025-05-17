@@ -36,37 +36,12 @@ export default function TrainingPage() {
       const data = await fetchTrainingData(true, showArchived); // Force refresh, pass showArchived flag
       
       // Process and store compliance data for the dashboard
-      if (data && typeof data === 'object') {
-        // If data is in the expected API structure with compliance info
-        if (data.compliance !== undefined || data.stats !== undefined) {
-          setTrainingComplianceData(data);
-          
-          if (data.records && Array.isArray(data.records)) {
-            setTrainingRecords(data.records);
-          }
-        } else if (data.records && Array.isArray(data.records)) {
-          // If only records are available but no compliance info
-          setTrainingRecords(data.records);
-          
-          // Generate basic compliance stats from records
-          const complianceData = generateComplianceData(data.records);
-          setTrainingComplianceData(complianceData);
-        } else if (Array.isArray(data)) {
-          // If API returns just an array of records
-          setTrainingRecords(data);
-          
-          // Generate basic compliance stats from records
-          const complianceData = generateComplianceData(data);
-          setTrainingComplianceData(complianceData);
-        } else {
-          console.log('No valid training data received:', data);
-          setTrainingRecords([]);
-        }
+      if (data.records && Array.isArray(data.records)) {
+        setTrainingRecords(data.records);
+        const complianceData = generateComplianceData(data.records);
+        setTrainingComplianceData(complianceData);
       } else if (Array.isArray(data)) {
-        // Handle case where API returns an array directly
         setTrainingRecords(data);
-        
-        // Generate basic compliance stats from records
         const complianceData = generateComplianceData(data);
         setTrainingComplianceData(complianceData);
       } else {
