@@ -98,8 +98,10 @@ exports.getTrainingData = async (req, res) => {
   try {
     // Get company ID from query params or default to 'default'
     const companyId = req.query.companyId || 'default';
+    // Check if we should include archived records
+    const includeArchived = req.query.includeArchived === 'true';
     
-    console.log(`Fetching training data for company: ${companyId}`);
+    console.log(`Fetching training data for company: ${companyId}, includeArchived: ${includeArchived}`);
     
     // Find the most recent training data entry
     const trainingData = await TrainingData.findOne({ companyId }).sort({ createdAt: -1 });
@@ -107,6 +109,11 @@ exports.getTrainingData = async (req, res) => {
     if (!trainingData) {
       console.log('No training data found for company:', companyId);
       return res.status(404).json({ message: 'No training data found' });
+    }
+    
+    // Filter out archived records unless explicitly requested
+    if (!includeArchived && trainingData.records) {
+      trainingData.records = trainingData.records.filter(record => !record.archived);
     }
     
     console.log(`Found training data with ${trainingData.records?.length || 0} records`);
@@ -288,3 +295,13 @@ exports.getTrainingMetrics = async (req, res) => {
     });
   }
 };
+
+
+// // Extract key metrics
+// const metrics = {
+//   trainingCompliance: trainingData.compliance || 0,
+//   upcomingRenewals: trainingData.stats?.upcoming || 0,
+//   expiredCertificates: trainingData.stats?.expired || 0,
+//   totalCertificates: trainingData.stats?.total || 0,
+//   completedCertificates: trainingData.stats?.completed || 0
+// };

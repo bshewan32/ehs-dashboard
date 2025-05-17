@@ -173,18 +173,34 @@ export const updateMetricsWithTrainingData = (metrics, trainingData) => {
 };
 
 // Fetch training data from server
-export const fetchTrainingData = async (forceRefresh = false) => {
+export const fetchTrainingData = async (forceRefresh = false, includeArchived = false) => {
   try {
     // Return cached data if valid and not forcing refresh
     if (!forceRefresh && isCacheValid()) {
       console.log('Using cached training data');
+      
+      // Filter archived records from cache if needed
+      if (!includeArchived && trainingCache.data && trainingCache.data.records) {
+        // Create a copy of cached data to avoid modifying the cache directly
+        const filteredData = {
+          ...trainingCache.data,
+          records: trainingCache.data.records.filter(record => !record.archived)
+        };
+        return filteredData;
+      }
+      
       return trainingCache.data;
     }
     
-    console.log('Fetching training data from:', `${api_url}/api/training`);
+    const url = new URL(`${api_url}/api/training`);
+    if (includeArchived) {
+      url.searchParams.append('includeArchived', 'true');
+    }
+    
+    console.log('Fetching training data from:', url.toString());
     
     // Try to fetch from API
-    const response = await fetch(`${api_url}/api/training`, {
+    const response = await fetch(url, {
       method: 'GET',
       headers: getHeaders()
     });
@@ -202,9 +218,19 @@ export const fetchTrainingData = async (forceRefresh = false) => {
     const data = await response.json();
     console.log('Training data fetched successfully:', data);
     
-    // Cache the fetched data
+    // Always cache the full data including archived records
     trainingCache.data = data;
     trainingCache.timestamp = Date.now();
+    
+    // Filter out archived records if needed
+    if (!includeArchived && data && data.records) {
+      // Return filtered data but keep the cache complete
+      const filteredData = {
+        ...data,
+        records: data.records.filter(record => !record.archived)
+      };
+      return filteredData;
+    }
     
     return data;
   } catch (error) {
@@ -217,9 +243,18 @@ export const fetchTrainingData = async (forceRefresh = false) => {
         const data = JSON.parse(storedData);
         console.log('Using training data from localStorage');
         
-        // Cache the data
+        // Cache the full data
         trainingCache.data = data;
         trainingCache.timestamp = Date.now();
+        
+        // Filter archived records if needed
+        if (!includeArchived && data && data.records) {
+          const filteredData = {
+            ...data,
+            records: data.records.filter(record => !record.archived)
+          };
+          return filteredData;
+        }
         
         return data;
       }
@@ -312,11 +347,16 @@ export const addTrainingRecord = async (record) => {
 };
 
 // Fetch training metrics summary (used for quick access to compliance metrics)
-export const fetchTrainingMetrics = async () => {
+export const fetchTrainingMetrics = async (includeArchived = false) => {
   try {
-    console.log('Fetching training metrics from:', `${api_url}/api/training/metrics`);
+    const url = new URL(`${api_url}/api/training/metrics`);
+    if (includeArchived) {
+      url.searchParams.append('includeArchived', 'true');
+    }
     
-    const response = await fetch(`${api_url}/api/training/metrics`, {
+    console.log('Fetching training metrics from:', url.toString());
+    
+    const response = await fetch(url, {
       method: 'GET',
       headers: getHeaders()
     });
@@ -337,6 +377,36 @@ export const fetchTrainingMetrics = async () => {
       const storedData = localStorage.getItem('trainingData');
       if (storedData) {
         const data = JSON.parse(storedData);
+        
+        // If we need to filter out archived records
+        if (!includeArchived && data.records) {
+          const nonArchivedRecords = data.records.filter(record => !record.archived);
+          const total = nonArchivedRecords.length;
+          const completed = nonArchivedRecords.filter(r => r.status === 'Completed').length;
+          const expired = nonArchivedRecords.filter(r => r.status === 'Expired').length;
+          
+          // Find upcoming renewals (records with expiry dates in next 90 days)
+          const now = new Date();
+          const ninetyDaysFromNow = new Date(now);
+          ninetyDaysFromNow.setDate(now.getDate() + 90);
+          
+          const upcomingRenewals = nonArchivedRecords
+            .filter(r => 
+              r.expiryDate && 
+              new Date(r.expiryDate) > now && 
+              new Date(r.expiryDate) <= ninetyDaysFromNow
+            ).length;
+          
+          return {
+            trainingCompliance: total > 0 ? Math.round((completed / total) * 100) : 0,
+            upcomingRenewals: upcomingRenewals,
+            expiredCertificates: expired,
+            totalCertificates: total,
+            completedCertificates: completed
+          };
+        }
+        
+        // If including archived records or no records to filter
         return {
           trainingCompliance: data.compliance || 0,
           upcomingRenewals: data.stats?.upcoming || 0,
@@ -360,10 +430,142 @@ export const fetchTrainingMetrics = async () => {
   }
 };
 
-// Delete a training record
+// Archive a training record
+export const archiveTrainingRecord = async (id) => {
+  try {
+    console.log('Archiving training record:', id);
+    
+    // Make API call to archive the record
+    const response = await fetch(`${api_url}/api/training/records/${id}/archive`, {
+      method: 'PUT',
+      headers: getHeaders()
+    });
+    
+    if (!response.ok) {
+      console.error('Server response not OK:', response.status, response.statusText);
+      throw new Error(`Failed to archive training record: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('Training record archived successfully:', result);
+    
+    // Clear cache to ensure fresh data on next fetch
+    trainingCache.data = null;
+    
+    return result;
+  } catch (error) {
+    console.error('Error archiving training record:', error);
+    
+    // Handle the case where the server is unavailable
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      // Try to archive the record locally
+      try {
+        // Get existing training data from local storage
+        const storedData = localStorage.getItem('trainingData');
+        if (storedData) {
+          const data = JSON.parse(storedData);
+          
+          // Find the record in the local data
+          let recordFound = false;
+          if (data.records && Array.isArray(data.records)) {
+            // Find the record by ID and mark it as archived
+            data.records = data.records.map(record => {
+              if (record._id === id) {
+                recordFound = true;
+                return { ...record, archived: true };
+              }
+              return record;
+            });
+          }
+          
+          if (recordFound) {
+            // Save the updated data back to local storage
+            localStorage.setItem('trainingData', JSON.stringify(data));
+            return { 
+              success: true, 
+              message: 'Training record archived locally (API unavailable)',
+              local: true 
+            };
+          }
+        }
+      } catch (localError) {
+        console.error('Error archiving record locally:', localError);
+      }
+    }
+    
+    throw error;
+  }
+};
+
+// Unarchive a training record
+export const unarchiveTrainingRecord = async (id) => {
+  try {
+    console.log('Unarchiving training record:', id);
+    
+    // Make API call to unarchive the record
+    const response = await fetch(`${api_url}/api/training/records/${id}/unarchive`, {
+      method: 'PUT',
+      headers: getHeaders()
+    });
+    
+    if (!response.ok) {
+      console.error('Server response not OK:', response.status, response.statusText);
+      throw new Error(`Failed to unarchive training record: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('Training record unarchived successfully:', result);
+    
+    // Clear cache to ensure fresh data on next fetch
+    trainingCache.data = null;
+    
+    return result;
+  } catch (error) {
+    console.error('Error unarchiving training record:', error);
+    
+    // Handle the case where the server is unavailable
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      // Try to unarchive the record locally
+      try {
+        // Get existing training data from local storage
+        const storedData = localStorage.getItem('trainingData');
+        if (storedData) {
+          const data = JSON.parse(storedData);
+          
+          // Find the record in the local data
+          let recordFound = false;
+          if (data.records && Array.isArray(data.records)) {
+            // Find the record by ID and mark it as unarchived
+            data.records = data.records.map(record => {
+              if (record._id === id) {
+                recordFound = true;
+                return { ...record, archived: false };
+              }
+              return record;
+            });
+          }
+          
+          if (recordFound) {
+            // Save the updated data back to local storage
+            localStorage.setItem('trainingData', JSON.stringify(data));
+            return { 
+              success: true, 
+              message: 'Training record unarchived locally (API unavailable)',
+              local: true 
+            };
+          }
+        }
+      } catch (localError) {
+        console.error('Error unarchiving record locally:', localError);
+      }
+    }
+    
+    throw error;
+  }
+};
+
+// Delete a training record (deprecated - use archiveTrainingRecord instead)
 export const deleteTrainingRecord = async (id) => {
-  // For now, this is just a placeholder since we're focusing on the upload functionality
-  // We'd implement a proper delete API call here in the future
-  console.log('Delete training record not yet implemented:', id);
-  return { success: true, message: 'Delete functionality not yet implemented' };
+  console.log('Delete training record is deprecated, use archiveTrainingRecord instead:', id);
+  return archiveTrainingRecord(id);
 };

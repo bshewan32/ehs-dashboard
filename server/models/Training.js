@@ -1,71 +1,38 @@
 // server/models/Training.js
 const mongoose = require('mongoose');
 
-// Schema for individual training records
-const trainingRecordSchema = new mongoose.Schema({
-  employee: { 
-    type: String, 
-    required: true 
-  },
-  trainingType: { 
-    type: String, 
-    required: true 
-  },
-  completionDate: { 
-    type: Date, 
-    required: true,
-    default: Date.now 
-  },
-  expirationDate: { 
-    type: Date
-  },
-  status: { 
-    type: String, 
-    required: true
-  },
-  department: { 
-    type: String 
-  },
-  daysRemaining: {
-    type: Number
-  }
-}, { _id: false });
-
-// Schema for training statistics
-const trainingStatsSchema = new mongoose.Schema({
-  total: {
-    type: Number,
-    default: 0
-  },
-  completed: {
-    type: Number,
-    default: 0
-  },
-  expired: {
-    type: Number,
-    default: 0
-  },
-  upcoming: {
-    type: Number,
-    default: 0
-  }
-}, { _id: false });
-
-// Main training data schema
-const trainingDataSchema = new mongoose.Schema({
-  companyId: {
+// Schema for individual training record
+const TrainingRecordSchema = new mongoose.Schema({
+  employee: {
     type: String,
-    default: 'default',
-    index: true
+    required: true,
+    trim: true
   },
-  uploadDate: {
+  trainingType: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  completionDate: {
     type: Date,
-    default: Date.now
+    default: null
   },
-  records: [trainingRecordSchema],
+  expirationDate: {
+    type: Date,
+    default: null
+  },
+  status: {
+    type: String,
+    enum: ['Not Started', 'Completed', 'Current', 'Expired', 'Due Soon', 'Valid', 'Renew'],
+    default: 'Not Started'
+  }
+});
+
+// Schema for overall training data
+const TrainingDataSchema = new mongoose.Schema({
+  records: [TrainingRecordSchema],
   compliance: {
     type: Number,
-    required: true,
     default: 0
   },
   upcomingRenewals: [{
@@ -74,7 +41,35 @@ const trainingDataSchema = new mongoose.Schema({
     expirationDate: Date,
     daysRemaining: Number
   }],
-  stats: trainingStatsSchema
-}, { timestamps: true });
+  stats: {
+    total: {
+      type: Number,
+      default: 0
+    },
+    completed: {
+      type: Number,
+      default: 0
+    },
+    expired: {
+      type: Number,
+      default: 0
+    },
+    upcoming: {
+      type: Number,
+      default: 0
+    }
+  },
+  companyId: {
+    type: String,
+    default: 'default',
+    index: true  // Add index for faster queries
+  },
+  uploadDate: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
 
-module.exports = mongoose.model('Training', trainingDataSchema);
+module.exports = mongoose.model('TrainingData', TrainingDataSchema);

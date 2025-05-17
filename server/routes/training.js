@@ -114,6 +114,20 @@ router.post('/', trainingController.saveTrainingData);
 router.get('/metrics', trainingController.getTrainingMetrics);
 
 /**
+ * @route   PUT /api/training/records/:id/archive
+ * @desc    Archive a training record
+ * @access  Private (if using auth middleware)
+ */
+router.put('/records/:id/archive', trainingController.archiveTrainingRecord);
+
+/**
+ * @route   PUT /api/training/records/:id/unarchive
+ * @desc    Unarchive a training record
+ * @access  Private (if using auth middleware)
+ */
+router.put('/records/:id/unarchive', trainingController.unarchiveTrainingRecord);
+
+/**
  * @route   GET /api/training/test
  * @desc    Simple test endpoint for training API
  * @access  Public  

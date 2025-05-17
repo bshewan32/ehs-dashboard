@@ -4,7 +4,12 @@ import { Link } from 'react-router-dom';
 import TrainingUploader from '../components/training/TrainingUploader';
 import TrainingComplianceDisplay from '../components/training/TrainingComplianceDisplay';
 import SingleRecordForm from '../components/training/SingleRecordForm';
-import { fetchTrainingData, saveTrainingData, deleteTrainingRecord } from '../components/services/trainingApi';
+import { 
+  fetchTrainingData, 
+  saveTrainingData, 
+  archiveTrainingRecord,
+  unarchiveTrainingRecord
+} from '../components/services/trainingApi';
 
 export default function TrainingPage() {
   const [trainingRecords, setTrainingRecords] = useState([]);
@@ -16,17 +21,19 @@ export default function TrainingPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [filter, setFilter] = useState('');
   const [filterBy, setFilterBy] = useState('employee');
+  const [showArchived, setShowArchived] = useState(false);
   
-  // Load training data on component mount
+  // Load training data on component mount and when showArchived changes
   useEffect(() => {
     loadTrainingData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showArchived]);
   
   // Function to load training data
   const loadTrainingData = async () => {
     try {
       setLoading(true);
-      const data = await fetchTrainingData(true); // Force refresh
+      const data = await fetchTrainingData(true, showArchived); // Force refresh, pass showArchived flag
       
       // Process and store compliance data for the dashboard
       if (data && typeof data === 'object') {
@@ -212,22 +219,41 @@ export default function TrainingPage() {
     }
   };
   
-  // Handle record deletion
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this training record?')) {
+  // Handle record archiving
+  const handleArchive = async (id) => {
+    if (!window.confirm('Are you sure you want to archive this training record? Archived records will be hidden from the main view but can be restored later.')) {
       return;
     }
     
     try {
-      await deleteTrainingRecord(id);
-      // Reload data after deletion
+      await archiveTrainingRecord(id);
+      // Reload data after archiving
       loadTrainingData();
       setSaveResponse({
         success: true,
-        message: 'Training record deleted successfully',
+        message: 'Training record archived successfully',
       });
     } catch (err) {
-      console.error('Error deleting training record:', err);
+      console.error('Error archiving training record:', err);
+      setSaveResponse({
+        success: false,
+        message: `Error: ${err.message || 'Unknown error'}`,
+      });
+    }
+  };
+  
+  // Handle record unarchiving
+  const handleUnarchive = async (id) => {
+    try {
+      await unarchiveTrainingRecord(id);
+      // Reload data after unarchiving
+      loadTrainingData();
+      setSaveResponse({
+        success: true,
+        message: 'Training record restored successfully',
+      });
+    } catch (err) {
+      console.error('Error unarchiving training record:', err);
       setSaveResponse({
         success: false,
         message: `Error: ${err.message || 'Unknown error'}`,
@@ -369,6 +395,21 @@ export default function TrainingPage() {
             <option value="department">Department</option>
           </select>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Show Archived</label>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="showArchived"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="showArchived" className="ml-2 block text-sm text-gray-700">
+              {showArchived ? 'Showing archived records' : 'Archived records hidden'}
+            </label>
+          </div>
+        </div>
         <div className="flex items-end">
           <button
             onClick={() => loadTrainingData()}
@@ -450,9 +491,19 @@ export default function TrainingPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredRecords.map((record, index) => (
-                <tr key={record._id || index} className="hover:bg-gray-50">
+                <tr 
+                  key={record._id || index} 
+                  className={`${record.archived ? 'bg-gray-100 hover:bg-gray-200 text-gray-500' : 'hover:bg-gray-50'}`}
+                >
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{record.employee}</div>
+                    <div className="flex items-center">
+                      <div className="text-sm font-medium text-gray-900">{record.employee}</div>
+                      {record.archived && (
+                        <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                          Archived
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900">{record.courseTitle}</div>
@@ -475,12 +526,21 @@ export default function TrainingPage() {
                     {record.department || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => handleDelete(record._id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {record.archived ? (
+                      <button
+                        onClick={() => handleUnarchive(record._id)}
+                        className="text-green-600 hover:text-green-900"
+                      >
+                        Restore
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleArchive(record._id)}
+                        className="text-amber-600 hover:text-amber-900"
+                      >
+                        Archive
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
