@@ -232,6 +232,82 @@ export const fetchTrainingData = async (forceRefresh = false) => {
   }
 };
 
+// Add this function to client/src/components/services/trainingApi.js
+
+/**
+ * Add a single training record to the database
+ * @param {Object} record - The training record to add
+ * @returns {Promise<Object>} - The saved record with its ID
+ */
+export const addTrainingRecord = async (record) => {
+  try {
+    // Set up headers
+    const headers = getHeaders();
+
+    // Send POST request to create the record
+    const response = await fetch(`${api_url}/api/training/records`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(record),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to add training record: ${response.status} ${response.statusText}`);
+    }
+
+    // Clear the cache after adding a record
+    if (apiCache && apiCache.training) {
+      apiCache.training.data = null;
+    }
+    
+    // Mark data as changed if the function exists
+    if (typeof markDataChanged === 'function') {
+      markDataChanged();
+    }
+
+    // Return the newly added record with its ID
+    return await response.json();
+  } catch (error) {
+    console.error('Error adding training record:', error);
+
+    // If server is unavailable, attempt to save locally
+    try {
+      // Get existing training data from local storage
+      const existingData = localStorage.getItem('trainingData');
+      let trainingData = existingData ? JSON.parse(existingData) : { records: [] };
+      
+      // Add fake ID for local storage version
+      const newRecord = {
+        ...record,
+        _id: `local_${Date.now()}`,
+        _local: true // Flag to identify locally stored records
+      };
+      
+      // Add the new record to the array
+      if (Array.isArray(trainingData.records)) {
+        trainingData.records.push(newRecord);
+      } else if (Array.isArray(trainingData)) {
+        trainingData.push(newRecord);
+      } else {
+        trainingData = { records: [newRecord] };
+      }
+      
+      // Save back to local storage
+      localStorage.setItem('trainingData', JSON.stringify(trainingData));
+      
+      // Return the new record with a message that it was saved locally
+      return { 
+        ...newRecord, 
+        local: true, 
+        message: 'Record saved to local storage (server unavailable)' 
+      };
+    } catch (localError) {
+      console.error('Error saving to local storage:', localError);
+      throw error; // Throw the original error
+    }
+  }
+};
+
 // Fetch training metrics summary (used for quick access to compliance metrics)
 export const fetchTrainingMetrics = async () => {
   try {

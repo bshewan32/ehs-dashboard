@@ -45,6 +45,53 @@ router.use((req, res, next) => {
   next();
 });
 
+// Add this to server/routes/training.js
+
+/**
+ * @route   POST /api/training/records
+ * @desc    Add a single training record
+ * @access  Private (if using auth middleware)
+ */
+router.post('/records', async (req, res) => {
+  try {
+    // Validate required fields
+    if (!req.body.employee || !req.body.courseTitle || !req.body.status) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Missing required fields: employee, courseTitle, and status are required'
+      });
+    }
+    
+    // Create a new training record
+    const newRecord = new TrainingRecord({
+      employee: req.body.employee,
+      courseTitle: req.body.courseTitle,
+      courseType: req.body.courseType || '',
+      status: req.body.status,
+      completionDate: req.body.completionDate || null,
+      expiryDate: req.body.expiryDate || null,
+      department: req.body.department || '',
+      notes: req.body.notes || ''
+    });
+    
+    // Save the record to the database
+    const savedRecord = await newRecord.save();
+    
+    // Return success response with the saved record
+    res.status(201).json({
+      success: true,
+      message: 'Training record added successfully',
+      record: savedRecord
+    });
+  } catch (error) {
+    console.error('Error adding training record:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message || 'Failed to add training record'
+    });
+  }
+});
+
 /**
  * @route   GET /api/training
  * @desc    Get all training data

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import TrainingUploader from '../components/training/TrainingUploader';
 import TrainingComplianceDisplay from '../components/training/TrainingComplianceDisplay';
+import SingleRecordForm from '../components/training/SingleRecordForm';
 import { fetchTrainingData, saveTrainingData, deleteTrainingRecord } from '../components/services/trainingApi';
 
 export default function TrainingPage() {
@@ -12,6 +13,7 @@ export default function TrainingPage() {
   const [error, setError] = useState(null);
   const [saveResponse, setSaveResponse] = useState(null);
   const [showUploader, setShowUploader] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [filter, setFilter] = useState('');
   const [filterBy, setFilterBy] = useState('employee');
   
@@ -174,6 +176,42 @@ export default function TrainingPage() {
     }
   };
   
+  // Handle new single record submission
+  const handleAddRecord = async (record) => {
+    try {
+      // Add the record to existing training data
+      const updatedRecords = [...trainingRecords, record];
+      
+      // Generate updated compliance data
+      const complianceData = generateComplianceData(updatedRecords);
+      
+      // Create payload for the API
+      const payload = {
+        records: updatedRecords,
+        ...complianceData
+      };
+      
+      // Save the updated data
+      const serverResponse = await saveTrainingData(payload);
+      
+      // Display success message
+      setSaveResponse({
+        success: true,
+        message: `Successfully added training record for ${record.employee}`,
+      });
+      
+      // Reload data and close the form
+      loadTrainingData();
+      setShowAddForm(false);
+    } catch (err) {
+      console.error('Error adding training record:', err);
+      setSaveResponse({
+        success: false,
+        message: `Error: ${err.message || 'Failed to add training record'}`,
+      });
+    }
+  };
+  
   // Handle record deletion
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this training record?')) {
@@ -247,12 +285,18 @@ export default function TrainingPage() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Training Management</h1>
-        <div className="space-x-4">
+        <div className="space-x-3">
           <button
-            onClick={() => setShowUploader(!showUploader)}
+            onClick={() => { setShowAddForm(true); setShowUploader(false); }}
+            className="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700"
+          >
+            Add Single Record
+          </button>
+          <button
+            onClick={() => { setShowUploader(!showUploader); setShowAddForm(false); }}
             className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700"
           >
-            {showUploader ? 'Hide Uploader' : 'Upload Training Data'}
+            {showUploader ? 'Hide Uploader' : 'Upload Multiple Records'}
           </button>
           <Link to="/debug">
             <button className="bg-purple-600 text-white px-4 py-2 rounded shadow hover:bg-purple-700">
@@ -271,6 +315,16 @@ export default function TrainingPage() {
       {saveResponse && (
         <div className={`p-4 mb-4 rounded ${saveResponse.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
           {saveResponse.message}
+        </div>
+      )}
+      
+      {/* Add Single Record Form */}
+      {showAddForm && (
+        <div className="mb-6">
+          <SingleRecordForm 
+            onRecordSubmit={handleAddRecord} 
+            onCancel={() => setShowAddForm(false)} 
+          />
         </div>
       )}
       
@@ -354,16 +408,26 @@ export default function TrainingPage() {
           <p className="mt-1 text-sm text-gray-500">
             {filter ? 'No records match your search criteria.' : 'Get started by uploading training data.'}
           </p>
-          <div className="mt-6">
+          <div className="mt-6 flex justify-center space-x-3">
+            <button
+              type="button"
+              onClick={() => setShowAddForm(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            >
+              <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+              </svg>
+              Add Single Record
+            </button>
             <button
               type="button"
               onClick={() => setShowUploader(true)}
               className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
               </svg>
-              Upload Training Data
+              Upload Multiple Records
             </button>
           </div>
         </div>
@@ -438,10 +502,12 @@ export default function TrainingPage() {
 // import React, { useState, useEffect } from 'react';
 // import { Link } from 'react-router-dom';
 // import TrainingUploader from '../components/training/TrainingUploader';
+// import TrainingComplianceDisplay from '../components/training/TrainingComplianceDisplay';
 // import { fetchTrainingData, saveTrainingData, deleteTrainingRecord } from '../components/services/trainingApi';
 
 // export default function TrainingPage() {
 //   const [trainingRecords, setTrainingRecords] = useState([]);
+//   const [trainingComplianceData, setTrainingComplianceData] = useState(null);
 //   const [loading, setLoading] = useState(true);
 //   const [error, setError] = useState(null);
 //   const [saveResponse, setSaveResponse] = useState(null);
@@ -460,11 +526,40 @@ export default function TrainingPage() {
 //       setLoading(true);
 //       const data = await fetchTrainingData(true); // Force refresh
       
-//       if (data && data.records && Array.isArray(data.records)) {
-//         setTrainingRecords(data.records);
-//       } else if (data && Array.isArray(data)) {
+//       // Process and store compliance data for the dashboard
+//       if (data && typeof data === 'object') {
+//         // If data is in the expected API structure with compliance info
+//         if (data.compliance !== undefined || data.stats !== undefined) {
+//           setTrainingComplianceData(data);
+          
+//           if (data.records && Array.isArray(data.records)) {
+//             setTrainingRecords(data.records);
+//           }
+//         } else if (data.records && Array.isArray(data.records)) {
+//           // If only records are available but no compliance info
+//           setTrainingRecords(data.records);
+          
+//           // Generate basic compliance stats from records
+//           const complianceData = generateComplianceData(data.records);
+//           setTrainingComplianceData(complianceData);
+//         } else if (Array.isArray(data)) {
+//           // If API returns just an array of records
+//           setTrainingRecords(data);
+          
+//           // Generate basic compliance stats from records
+//           const complianceData = generateComplianceData(data);
+//           setTrainingComplianceData(complianceData);
+//         } else {
+//           console.log('No valid training data received:', data);
+//           setTrainingRecords([]);
+//         }
+//       } else if (Array.isArray(data)) {
 //         // Handle case where API returns an array directly
 //         setTrainingRecords(data);
+        
+//         // Generate basic compliance stats from records
+//         const complianceData = generateComplianceData(data);
+//         setTrainingComplianceData(complianceData);
 //       } else {
 //         console.log('No valid training data received:', data);
 //         setTrainingRecords([]);
@@ -475,9 +570,62 @@ export default function TrainingPage() {
 //       console.error('Error loading training data:', err);
 //       setError('Failed to load training data: ' + (err.message || 'Unknown error'));
 //       setTrainingRecords([]);
+//       setTrainingComplianceData(null);
 //     } finally {
 //       setLoading(false);
 //     }
+//   };
+  
+//   // Generate compliance data from records
+//   const generateComplianceData = (records) => {
+//     if (!records || !Array.isArray(records) || records.length === 0) {
+//       return null;
+//     }
+    
+//     const total = records.length;
+//     const completed = records.filter(r => r.status === 'Completed').length;
+//     const expired = records.filter(r => r.status === 'Expired').length;
+    
+//     // Find upcoming renewals (records with expiry dates in next 30 days)
+//     const today = new Date();
+//     const thirtyDaysFromNow = new Date();
+//     thirtyDaysFromNow.setDate(today.getDate() + 30);
+    
+//     const upcomingRenewals = records
+//       .filter(record => {
+//         if (!record.expiryDate) return false;
+        
+//         const expiryDate = new Date(record.expiryDate);
+//         return !isNaN(expiryDate.getTime()) && 
+//                expiryDate > today && 
+//                expiryDate <= thirtyDaysFromNow;
+//       })
+//       .map(record => {
+//         const expiryDate = new Date(record.expiryDate);
+//         const daysRemaining = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+        
+//         return {
+//           employee: record.employee,
+//           trainingType: record.courseTitle || record.courseType || 'Training',
+//           expirationDate: expiryDate,
+//           daysRemaining
+//         };
+//       });
+    
+//     // Sort by days remaining (ascending)
+//     upcomingRenewals.sort((a, b) => a.daysRemaining - b.daysRemaining);
+    
+//     return {
+//       compliance: total > 0 ? (completed / total) * 100 : 0,
+//       stats: {
+//         total,
+//         completed,
+//         expired,
+//         upcoming: upcomingRenewals.length
+//       },
+//       upcomingRenewals,
+//       records
+//     };
 //   };
   
 //   // Handle data from CSV upload
@@ -490,17 +638,13 @@ export default function TrainingPage() {
       
 //       console.log('Processing training data before API save:');
       
+//       // Generate compliance data
+//       const complianceData = generateComplianceData(data);
+      
 //       // Create a properly structured payload for the API
 //       const payload = {
 //         records: data,
-//         compliance: 100, // Calculate this server-side
-//         upcomingRenewals: [],
-//         stats: {
-//           total: data.length,
-//           completed: data.filter(item => item.status === 'Completed').length || 0,
-//           expired: data.filter(item => item.status === 'Expired').length || 0,
-//           upcoming: 0
-//         }
+//         ...complianceData
 //       };
       
 //       console.log(payload);
@@ -602,7 +746,7 @@ export default function TrainingPage() {
 //   return (
 //     <div className="p-6">
 //       <div className="flex justify-between items-center mb-6">
-//         <h1 className="text-2xl font-bold text-gray-800">Training Records</h1>
+//         <h1 className="text-2xl font-bold text-gray-800">Training Management</h1>
 //         <div className="space-x-4">
 //           <button
 //             onClick={() => setShowUploader(!showUploader)}
@@ -636,6 +780,15 @@ export default function TrainingPage() {
 //           <TrainingUploader onDataProcessed={onDataProcessed} />
 //         </div>
 //       )}
+      
+//       {/* Training Compliance Dashboard */}
+//       {!loading && trainingComplianceData && (
+//         <div className="mb-8">
+//           <TrainingComplianceDisplay trainingData={trainingComplianceData} />
+//         </div>
+//       )}
+      
+//       <h2 className="text-xl font-semibold text-gray-800 mb-4 mt-8">Training Records</h2>
       
 //       {/* Search and Filter */}
 //       <div className="mb-6 flex flex-wrap gap-4">
@@ -780,3 +933,4 @@ export default function TrainingPage() {
 //     </div>
 //   );
 // }
+
