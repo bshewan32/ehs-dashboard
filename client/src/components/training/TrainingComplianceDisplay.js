@@ -23,7 +23,7 @@ const TrainingComplianceDisplay = ({ trainingData }) => {
       if (trainingData.records && trainingData.records.length > 0) {
         dataToExport = trainingData.records.map(record => ({
           'Employee': record.employee || record.employeeName,
-          'Training Type': record.trainingType,
+          'Course Title': record.courseTitle,
           'Certification': record.certificationName || record.training,
           'Completion Date': record.completionDate instanceof Date 
             ? record.completionDate.toLocaleDateString() 
@@ -40,7 +40,7 @@ const TrainingComplianceDisplay = ({ trainingData }) => {
       else if (trainingData.upcomingRenewals && trainingData.upcomingRenewals.length > 0) {
         dataToExport = trainingData.upcomingRenewals.map(renewal => ({
           'Employee': renewal.employee || renewal.employeeName,
-          'Training Type': renewal.trainingType,
+          'Course Title': renewal.courseTitle,
           'Certification': renewal.certificationName || renewal.training,
           'Expiry Date': renewal.expirationDate instanceof Date 
             ? renewal.expirationDate.toLocaleDateString() 
