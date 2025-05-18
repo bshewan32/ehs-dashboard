@@ -193,6 +193,30 @@ export default function TrainingPage() {
       });
     }
   };
+
+  // Handle update of a single training record
+  const handleUpdateRecord = async (updatedRecord) => {
+    try {
+      const updatedRecords = trainingRecords.map(r => r._id === updatedRecord._id ? updatedRecord : r);
+      const complianceData = generateComplianceData(updatedRecords);
+      const payload = {
+        records: updatedRecords,
+        ...complianceData
+      };
+      const serverResponse = await saveTrainingData(payload);
+      setSaveResponse({
+        success: true,
+        message: `Successfully updated training record for ${updatedRecord.employee}`,
+      });
+      loadTrainingData();
+    } catch (err) {
+      console.error('Error updating training record:', err);
+      setSaveResponse({
+        success: false,
+        message: `Error: ${err.message || 'Failed to update training record'}`,
+      });
+    }
+  };
   
   // Handle record archiving
   const handleArchive = async (id) => {
@@ -324,6 +348,7 @@ export default function TrainingPage() {
         <div className="mb-6">
           <SingleRecordForm 
             onRecordSubmit={handleAddRecord} 
+            onUpdateRecord={handleUpdateRecord}
             onCancel={() => setShowAddForm(false)} 
           />
         </div>
