@@ -269,11 +269,27 @@ export default function Dashboard() {
       // Add training data to metrics
       try {
         // Import needed only for this function
-        const { fetchTrainingData } = await import('../components/services/trainingApi');
+        const { fetchTrainingData, fetchTrainingMetrics } = await import('../components/services/trainingApi');
+        
+        // Get both detailed and summary training data
         const trainingData = await fetchTrainingData(true);
+        const trainingMetrics = await fetchTrainingMetrics(false);
+        
         if (trainingData) {
           console.log('Adding training data to metrics:', trainingData);
-          periodMetrics.trainingData = trainingData;
+          periodMetrics.trainingData = {
+            ...trainingData,
+            // Ensure we have a properly structured stats object for the widget
+            stats: {
+              total: trainingData.stats?.total || 0,
+              completed: trainingData.stats?.completed || 0,
+              expired: trainingData.stats?.expired || 0,
+              upcoming: trainingData.stats?.upcoming || 0
+            },
+            compliance: trainingData.compliance || trainingMetrics.trainingCompliance || 0,
+            // Use upcomingRenewals for the widget
+            upcoming: trainingData.upcomingRenewals || []
+          };
         }
       } catch (trainingError) {
         console.error('Error fetching training data:', trainingError);
@@ -579,7 +595,16 @@ export default function Dashboard() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <TrainingComplianceWidget trainingData={metrics?.trainingData} />
+              <TrainingComplianceWidget trainingData={metrics?.trainingData ? {
+                stats: {
+                  total: metrics.trainingData.stats?.total || 0,
+                  completed: metrics.trainingData.stats?.completed || 0,
+                  expired: metrics.trainingData.stats?.expired || 0,
+                  upcoming: metrics.trainingData.stats?.upcoming || 0
+                },
+                compliance: metrics.trainingData.compliance || 0,
+                upcoming: metrics.trainingData.upcomingRenewals || []
+              } : null} />
               <InspectionsWidget periodFilter={periodFilter} companyFilter={companyFilter} />
             </div>
           </section>

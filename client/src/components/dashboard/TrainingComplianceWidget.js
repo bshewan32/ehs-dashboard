@@ -17,8 +17,14 @@ const TrainingComplianceWidget = ({ trainingData }) => {
       return defaultData;
     }
     
-    const { completed, expired, upcoming, total } = trainingData.stats;
-    const notStarted = total - (completed + expired + upcoming);
+    // Get values with fallbacks to ensure no undefined values
+    const completed = trainingData.stats.completed || 0;
+    const expired = trainingData.stats.expired || 0;
+    const upcoming = trainingData.stats.upcoming || 0;
+    const total = trainingData.stats.total || 0;
+    
+    // Calculate not started value, ensuring it's not negative
+    const notStarted = Math.max(0, total - (completed + expired + upcoming));
     
     return [
       { name: 'Current', value: completed, color: '#10b981' },
@@ -26,7 +32,7 @@ const TrainingComplianceWidget = ({ trainingData }) => {
       { name: 'Due Soon', value: upcoming, color: '#f59e0b' },
       { name: 'Not Started', value: notStarted > 0 ? notStarted : 0, color: '#6b7280' }
     ].filter(item => item.value > 0);
-  }, [trainingData]);
+  }, [trainingData, defaultData]);
   
   // Get compliance percentage and color
   const getComplianceDetails = () => {
@@ -70,7 +76,9 @@ const TrainingComplianceWidget = ({ trainingData }) => {
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const { name, value } = payload[0].payload;
-      const percentage = ((value / trainingData.stats.total) * 100).toFixed(1);
+      // Get total with fallback to ensure no division by zero
+      const total = trainingData?.stats?.total || 1;
+      const percentage = ((value / total) * 100).toFixed(1);
       
       return (
         <div className="bg-white p-2 shadow-md border rounded text-xs">
@@ -128,7 +136,7 @@ const TrainingComplianceWidget = ({ trainingData }) => {
       </div>
       
       {/* Recent or upcoming trainings section */}
-      {trainingData.upcoming && trainingData.upcoming.length > 0 ? (
+      {trainingData?.upcoming && Array.isArray(trainingData.upcoming) && trainingData.upcoming.length > 0 ? (
         <div className="mt-3">
           <h3 className="text-sm font-medium text-gray-700 mb-2">Upcoming Renewals</h3>
           <div className="overflow-hidden rounded border border-gray-200 max-h-36">
@@ -136,15 +144,17 @@ const TrainingComplianceWidget = ({ trainingData }) => {
               <div key={idx} className={`px-3 py-2 text-sm ${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
                 <div className="flex justify-between">
                   <div>
-                    <span className="font-medium">{training.name || 'Training'}</span>
+                    <span className="font-medium">{training.name || training.trainingType || 'Training'}</span>
                     {training.employee && <span className="text-gray-500"> - {training.employee}</span>}
                   </div>
                   <div className="text-gray-500">
-                    {new Date(training.expiryDate).toLocaleDateString()}
+                    {(training.expiryDate || training.expirationDate) && 
+                      new Date(training.expiryDate || training.expirationDate).toLocaleDateString()}
                   </div>
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
                   {training.category && `Category: ${training.category}`}
+                  {training.daysRemaining && `Days remaining: ${training.daysRemaining}`}
                 </div>
               </div>
             ))}
@@ -182,7 +192,7 @@ const TrainingComplianceWidget = ({ trainingData }) => {
       )}
       
       {/* Alert for expired certifications */}
-      {trainingData.stats.expired > 0 && (
+      {trainingData?.stats?.expired > 0 && (
         <div className="mt-3 text-xs text-red-600 bg-red-50 p-2 rounded">
           <span className="font-medium">{trainingData.stats.expired} expired certificates</span> require immediate action
         </div>

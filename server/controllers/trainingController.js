@@ -69,7 +69,7 @@ const TrainingSchema = new mongoose.Schema({
 });
 
 // Only create the model if it doesn't already exist
-const TrainingData = mongoose.models.Training || mongoose.model('Training', TrainingSchema, 'trainings');
+const TrainingData = mongoose.models.TrainingData || mongoose.model('TrainingData', TrainingSchema, 'trainings');
 
 // Debug function to log safely
 const safeLog = (obj) => {

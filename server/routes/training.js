@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const trainingController = require('../controllers/trainingController');
-const TrainingData = require('../models/Training');
+const { model: TrainingData } = require('../models/Training');
 
 // Debug middleware to log request details
 router.use((req, res, next) => {
