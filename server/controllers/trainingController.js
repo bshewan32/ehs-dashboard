@@ -69,7 +69,7 @@ const TrainingSchema = new mongoose.Schema({
 });
 
 // Only create the model if it doesn't already exist
-const TrainingData = mongoose.models.Training || mongoose.model('Training', TrainingSchema);
+const TrainingData = mongoose.models.Training || mongoose.model('Training', TrainingSchema, 'trainings');
 
 // Debug function to log safely
 const safeLog = (obj) => {
@@ -436,11 +436,3 @@ exports.unarchiveTrainingRecord = async (req, res) => {
 };
 
 
-// // Extract key metrics
-// const metrics = {
-//   trainingCompliance: trainingData.compliance || 0,
-//   upcomingRenewals: trainingData.stats?.upcoming || 0,
-//   expiredCertificates: trainingData.stats?.expired || 0,
-//   totalCertificates: trainingData.stats?.total || 0,
-//   completedCertificates: trainingData.stats?.completed || 0
-// };

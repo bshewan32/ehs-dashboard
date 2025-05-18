@@ -267,9 +267,6 @@ export const fetchTrainingData = async (forceRefresh = false, includeArchived = 
   }
 };
 
-// Add this function to client/src/components/services/trainingApi.js
-
-// Add this function to client/src/components/services/trainingApi.js
 
 /**
  * Add a single training record to the database
