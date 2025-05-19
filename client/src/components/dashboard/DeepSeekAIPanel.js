@@ -24,6 +24,17 @@ const DeepSeekAIPanel = ({ metrics, selectedPeriod, companyName }) => {
         company: companyName || 'All Companies'
       };
       
+      // Include training data if available
+      if (metricsData.trainingData) {
+        keyMetrics.trainingData = {
+          compliance: metricsData.trainingData.compliance || 0,
+          total: metricsData.trainingData.stats?.total || 0,
+          completed: metricsData.trainingData.stats?.completed || 0,
+          expired: metricsData.trainingData.stats?.expired || 0,
+          upcoming: metricsData.trainingData.stats?.upcoming || 0
+        };
+      }
+      
       // Include KPI data if available
       if (metricsData.leading?.kpis && metricsData.leading.kpis.length > 0) {
         keyMetrics.kpis = metricsData.leading.kpis.map(kpi => ({
@@ -100,7 +111,7 @@ const fetchRecommendationsFromAPI = useCallback(async (metricsData) => {
     if (!metrics) return {};
     
     // Create a simplified metrics object for the API
-    return {
+    const formattedMetrics = {
       incidents: metrics.lagging?.incidentCount || metrics.totalIncidents || 0,
       nearMisses: metrics.lagging?.nearMissCount || metrics.totalNearMisses || 0,
       firstAid: metrics.lagging?.firstAidCount || metrics.firstAidCount || 0,
@@ -109,6 +120,33 @@ const fetchRecommendationsFromAPI = useCallback(async (metricsData) => {
       riskScore: metrics.riskScore || 0,
       kpis: metrics.leading?.kpis || []
     };
+    
+    // Add training data if available
+    if (metrics.trainingData) {
+      // Override the general trainingCompliance with the more specific one from trainingData
+      formattedMetrics.trainingCompliance = metrics.trainingData.compliance || metrics.trainingCompliance || 0;
+      
+      // Add detailed training stats
+      formattedMetrics.trainingStats = {
+        total: metrics.trainingData.stats?.total || 0,
+        completed: metrics.trainingData.stats?.completed || 0,
+        expired: metrics.trainingData.stats?.expired || 0,
+        upcoming: metrics.trainingData.stats?.upcoming || 0
+      };
+      
+      // Add an additional KPI for training compliance if not already present
+      if (formattedMetrics.kpis && !formattedMetrics.kpis.find(k => k.id === 'trainingCompliance')) {
+        formattedMetrics.kpis.push({
+          id: 'trainingCompliance',
+          name: 'Training Compliance',
+          actual: metrics.trainingData.compliance || 0,
+          target: 100,
+          unit: '%'
+        });
+      }
+    }
+    
+    return formattedMetrics;
   };
 
   // Replace the current generateFallbackRecommendations function with this improved version
@@ -126,7 +164,21 @@ const generateFallbackRecommendations = (metrics) => {
   const nearMissCount = metrics.lagging?.nearMissCount || metrics.totalNearMisses || 0;
   const firstAidCount = metrics.lagging?.firstAidCount || metrics.firstAidCount || 0;
   const medicalTreatmentCount = metrics.lagging?.medicalTreatmentCount || metrics.medicalTreatmentCount || 0;
-  const trainingCompliance = metrics.trainingCompliance || 0;
+  
+  // Get training data with fallbacks
+  let trainingCompliance = metrics.trainingCompliance || 0;
+  let trainingExpired = 0;
+  let trainingUpcoming = 0;
+  let trainingTotal = 0;
+  
+  // Use detailed training data if available
+  if (metrics.trainingData) {
+    trainingCompliance = metrics.trainingData.compliance || trainingCompliance;
+    trainingExpired = metrics.trainingData.stats?.expired || 0;
+    trainingUpcoming = metrics.trainingData.stats?.upcoming || 0;
+    trainingTotal = metrics.trainingData.stats?.total || 0;
+  }
+  
   const riskScore = metrics.riskScore || 0;
   
   // Get KPI values if available
@@ -149,7 +201,16 @@ const generateFallbackRecommendations = (metrics) => {
   
   // Training compliance recommendation
   if (trainingCompliance < 80) {
-    recommendations.push(`Training compliance${companyContext} is below target at ${trainingCompliance}%. Inadequate training is often a contributing factor in workplace incidents. Identify barriers to training completion and consider implementing a more accessible training program or dedicated time allocations for safety training. Develop role-specific training matrices to ensure all employees receive training relevant to their specific job hazards.`);
+    recommendations.push(`Training compliance${companyContext} is below target at ${trainingCompliance.toFixed(1)}%. Inadequate training is often a contributing factor in workplace incidents. Identify barriers to training completion and consider implementing a more accessible training program or dedicated time allocations for safety training. Develop role-specific training matrices to ensure all employees receive training relevant to their specific job hazards.`);
+  }
+  
+  // Add specific training recommendations based on detailed training data
+  if (trainingExpired > 0) {
+    recommendations.push(`There are ${trainingExpired} expired training certifications${companyContext} that require immediate attention. Expired certifications may create regulatory compliance issues and safety risks. Create a prioritized action plan to update these certifications based on risk level, and develop a better tracking system to ensure renewals are scheduled well before expiration dates. Consider implementing automated reminders at 60, 30, and 15 days before certification expiry.`);
+  }
+  
+  if (trainingUpcoming > 0) {
+    recommendations.push(`There are ${trainingUpcoming} training certifications due for renewal soon${companyContext}. Being proactive about upcoming renewals helps maintain consistent compliance levels. Create a structured renewal schedule with specified timeframes for each certification type, and group similar certifications together when possible to optimize training resources and minimize operational disruptions.`);
   }
   
   // First aid and medical treatment recommendation
