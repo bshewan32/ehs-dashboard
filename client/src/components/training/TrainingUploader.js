@@ -1,6 +1,7 @@
 // client/src/components/training/TrainingUploader.js
 import React, { useState } from 'react';
 import Papa from 'papaparse';
+import { parseTrainingExcel, validateTrainingData } from '../utils/excelUtils';
 
 const TrainingUploader = ({ onDataProcessed }) => {
   const [uploading, setUploading] = useState(false);
@@ -32,10 +33,8 @@ const TrainingUploader = ({ onDataProcessed }) => {
     if (file.name.endsWith('.csv')) {
       processCSV(file);
     } else {
-      // For Excel files, we would need an Excel parser
-      // This is a placeholder for future implementation
-      setError('Excel files are not currently supported. Please convert to CSV.');
-      setUploading(false);
+      // For Excel files, use the Excel parser
+      processExcel(file);
     }
   };
   
@@ -110,6 +109,50 @@ const TrainingUploader = ({ onDataProcessed }) => {
     };
     
     reader.readAsText(file);
+  };
+
+  const processExcel = async (file) => {
+    try {
+      // Parse Excel file
+      const results = await parseTrainingExcel(file);
+      
+      console.log('Excel parsed successfully with', results.length, 'records');
+      
+      // Validate data
+      const validation = validateTrainingData(results);
+      if (!validation.isValid) {
+        setError(`Missing required columns: ${validation.missingColumns.join(', ')}`);
+        setUploading(false);
+        return;
+      }
+      
+      if (results.length === 0) {
+        setError('No data found in the Excel file');
+        setUploading(false);
+        return;
+      }
+      
+      // Map parsed data to our training record structure
+      const trainingData = results.map(record => {
+        return processTrainingRecord(record);
+      }).filter(record => record.employee && record.courseTitle);
+      
+      console.log('Processed', trainingData.length, 'valid training records');
+      
+      if (trainingData.length === 0) {
+        setError('No valid training records found in the file. Each record must have an employee name and course title.');
+        setUploading(false);
+        return;
+      }
+      
+      // Send the processed data back to parent component
+      onDataProcessed(trainingData);
+      setUploading(false);
+    } catch (error) {
+      console.error('Error processing Excel file:', error);
+      setError(`Error processing Excel file: ${error.message}`);
+      setUploading(false);
+    }
   };
   
   // Process a training record to standardize fields
@@ -194,11 +237,11 @@ const TrainingUploader = ({ onDataProcessed }) => {
       
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Upload CSV File
+          Upload CSV or Excel File
         </label>
         <input
           type="file"
-          accept=".csv"
+          accept=".csv,.xlsx,.xls"
           onChange={handleFileChange}
           className="block w-full text-sm text-gray-500
                     file:mr-4 file:py-2 file:px-4
@@ -237,11 +280,12 @@ const TrainingUploader = ({ onDataProcessed }) => {
       )}
       
       <div className="mt-4 text-sm text-gray-600">
-        <p className="font-medium">CSV Format Requirements:</p>
+        <p className="font-medium">File Format Requirements:</p>
         <ul className="list-disc list-inside pl-4 mt-1">
-          <li>Headers should include: Employee, CourseTitle, CompletionDate</li>
-          <li>Optional headers: ExpiryDate, Status, Department, AssignedBy, CourseType</li>
+          <li>Required columns: Employee, CourseTitle (or Training/Course)</li>
+          <li>Optional columns: CompletionDate, ExpiryDate, Status, Department</li>
           <li>Dates can be in any standard format (YYYY-MM-DD recommended)</li>
+          <li>Supports CSV and Excel (.xlsx, .xls) files</li>
         </ul>
       </div>
     </div>

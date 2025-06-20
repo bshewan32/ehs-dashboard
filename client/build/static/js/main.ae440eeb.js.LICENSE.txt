@@ -1,3 +1,10 @@
+/* @license
+Papa Parse
+v5.5.2
+https://github.com/mholt/PapaParse
+License: MIT
+*/
+
 /*!
  * html2canvas 1.4.1 <https://html2canvas.hertzen.com>
  * Copyright (c) 2022 Niklas von Hertzen <https://hertzen.com>
@@ -20,8 +27,6 @@
 /*! decimal.js-light v2.5.1 https://github.com/MikeMcl/decimal.js-light/LICENCE */
 
 /*! sheetjs (C) 2013-present SheetJS -- http://sheetjs.com */
-
-/*! xlsx.js (C) 2013-present SheetJS -- http://sheetjs.com */
 
 /**
  * @license
