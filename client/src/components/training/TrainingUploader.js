@@ -117,6 +117,7 @@ const TrainingUploader = ({ onDataProcessed }) => {
       const results = await parseTrainingExcel(file);
       
       console.log('Excel parsed successfully with', results.length, 'records');
+      console.log('Sample record keys:', results.length > 0 ? Object.keys(results[0]) : 'No records');
       
       // Validate data
       const validation = validateTrainingData(results);
@@ -134,7 +135,17 @@ const TrainingUploader = ({ onDataProcessed }) => {
       
       // Map parsed data to our training record structure
       const trainingData = results.map(record => {
-        return processTrainingRecord(record);
+        const processed = processTrainingRecord(record);
+        // Debug first few records
+        if (results.indexOf(record) < 3) {
+          console.log(`Record ${results.indexOf(record)}:`, {
+            original: record,
+            processed: processed,
+            hasEmployee: !!processed.employee,
+            hasCourseTitle: !!processed.courseTitle
+          });
+        }
+        return processed;
       }).filter(record => record.employee && record.courseTitle);
       
       console.log('Processed', trainingData.length, 'valid training records');
@@ -159,7 +170,7 @@ const TrainingUploader = ({ onDataProcessed }) => {
   const processTrainingRecord = (record) => {
     // Map common variations of field names
     const employeeName = record.employee || record.employeeName || record.name || '';
-    const courseTitle = record.courseTitle || record.course || record.training || '';
+    const courseTitle = record.courseTitle || record.course || record.training || record.trainingType || record.certificate || '';
     
     // Parse dates
     let completionDate = null;

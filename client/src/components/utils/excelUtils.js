@@ -58,7 +58,7 @@ const normalizeColumnNames = (data) => {
   const columnMappings = {
     // Map variations of column names to standardized names
     'employee': ['Employee', 'EmployeeName', 'Employee Name', 'Name', 'Staff'],
-    'trainingType': ['Training Type', 'TrainingType', 'Training', 'Certificate', 'Course', 'CertificateType'],
+    'courseTitle': ['Training Type', 'TrainingType', 'Training', 'Certificate', 'Course', 'CertificateType', 'Course Title', 'CourseTitle'],
     'completionDate': ['Completion Date', 'CompletionDate', 'Date Completed', 'DateCompleted', 'Completed'],
     'expirationDate': ['Expiration Date', 'ExpirationDate', 'Expires', 'Valid Until', 'ValidUntil'],
     'status': ['Status', 'CertificateStatus', 'Certificate Status', 'State']
@@ -117,7 +117,7 @@ export const validateTrainingData = (data) => {
     return { isValid: false, missingColumns: ['No data found'] };
   }
   
-  const requiredColumns = ['employee', 'trainingType'];
+  const requiredColumns = ['employee', 'courseTitle'];
   const missingColumns = [];
   
   // Check first row for required columns
