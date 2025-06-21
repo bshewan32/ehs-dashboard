@@ -78,6 +78,8 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/inspections', require('./routes/inspections'));
 app.use('/api/ai', require('./routes/ai')); // AI route
 app.use('/api/training', require('./routes/training')); 
+const kpiRoutes = require('./routes/kpis');
+app.use('/api/kpis', kpiRoutes);
 
 // Only add the DeepSeek route if the file exists and API key is configured
 try {

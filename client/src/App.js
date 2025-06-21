@@ -8,6 +8,7 @@ import InspectionForm from './components/forms/InspectionFormPage'
 import InspectionDetailsPage from './pages/InspectionDetailsPage';
 import ReportsPage from './pages/ReportsPage';
 import TrainingPage from './pages/TrainingPage';
+import KPIManagementPage from './pages/KPIManagementPage';
 
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
           <Route path="/inspections/:id" element={<InspectionDetailsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/training" element={<TrainingPage />} />
+          <Route path="/kpi-management" element={<KPIManagementPage />} />
         </Routes>
       </div>
     </Router>
