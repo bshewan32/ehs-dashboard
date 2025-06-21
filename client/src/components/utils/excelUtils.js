@@ -110,7 +110,7 @@ const normalizeColumnNames = (data) => {
 /**
  * Validate that the Excel file contains the required columns
  * @param {Array} data - JSON data from Excel
- * @returns {Object} - Validation result {isValid, missingColumns}
+ * @returns {Object} - Validation result {isValid: boolean, missingColumns: string[]}
  */
 export const validateTrainingData = (data) => {
   if (!data || data.length === 0) {
@@ -118,16 +118,11 @@ export const validateTrainingData = (data) => {
   }
   
   const requiredColumns = ['employee', 'courseTitle'];
-  const missingColumns = [];
+  const firstRowKeys = Object.keys(data[0]);
   
-  // Check first row for required columns
-  const firstRow = data[0];
-  
-  requiredColumns.forEach(column => {
-    if (!(column in firstRow)) {
-      missingColumns.push(column);
-    }
-  });
+  const missingColumns = requiredColumns.filter(
+    column => !firstRowKeys.includes(column)
+  );
   
   return {
     isValid: missingColumns.length === 0,
@@ -136,16 +131,50 @@ export const validateTrainingData = (data) => {
 };
 
 /**
- * Format date object to YYYY-MM-DD string
- * @param {Date} date - Date object to format
- * @returns {string} - Formatted date string
+ * Parse various date formats into Date objects
+ * @param {string|number|Date} dateInput - Date to parse
+ * @returns {Date|null} - Parsed date or null if invalid
  */
-export const formatDate = (date) => {
-  if (!date) return '';
-  if (!(date instanceof Date)) {
-    date = new Date(date);
-    if (isNaN(date.getTime())) return '';
+export const parseDate = (dateInput) => {
+  if (!dateInput) return null;
+  
+  // Handle existing Date objects
+  if (dateInput instanceof Date) {
+    return isNaN(dateInput.getTime()) ? null : new Date(dateInput);
   }
+  
+  // Handle Excel numeric dates
+  if (typeof dateInput === 'number') {
+    const excelEpoch = new Date(1900, 0, 1);
+    const days = dateInput - (dateInput > 60 ? 1 : 0); // Excel 1900 leap year bug
+    const date = new Date(excelEpoch.getTime() + days * 86400000);
+    return isNaN(date.getTime()) ? null : date;
+  }
+  
+  // Handle string input
+  if (typeof dateInput === 'string') {
+    // Try ISO format first (YYYY-MM-DD)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+      const date = new Date(dateInput);
+      return isNaN(date.getTime()) ? null : date;
+    }
+    
+    // Fallback to Date constructor
+    const date = new Date(dateInput);
+    return isNaN(date.getTime()) ? null : date;
+  }
+  
+  return null;
+};
+
+/**
+ * Format date to YYYY-MM-DD string
+ * @param {Date|string|number} dateInput - Date to format
+ * @returns {string} - Formatted date string or empty string if invalid
+ */
+export const formatDate = (dateInput) => {
+  const date = parseDate(dateInput);
+  if (!date) return '';
   
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');

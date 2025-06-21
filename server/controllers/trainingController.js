@@ -130,128 +130,156 @@ exports.saveTrainingData = async (req, res) => {
     // Get company ID from body or default to 'default'
     const companyId = req.body.companyId || 'default';
     
-    console.log(`Saving training data for company: ${companyId}`);
-    console.log('Request body top-level keys:', Object.keys(req.body));
-    
-    // Validate the request has some form of records
-    if (!req.body.records) {
-      console.error('Missing records in request body');
+    // Extract and validate records
+    const records = extractAndValidateRecords(req.body);
+    if (!records.isValid) {
       return res.status(400).json({
-        message: 'Invalid training data format: "records" field is required'
+        message: records.message,
+        ...(records.invalidCount && { invalidCount: records.invalidCount })
       });
     }
-    
-    // Ensure records is an array
-    if (!Array.isArray(req.body.records)) {
-      console.error('Records is not an array:', typeof req.body.records);
-      return res.status(400).json({
-        message: 'Invalid training data format: "records" must be an array'
-      });
-    }
-    
-    // Validate records have required fields
-    const invalidRecords = req.body.records.filter(
-      record => !record.employee || !record.courseTitle
-    );
-    
-    if (invalidRecords.length > 0) {
-      console.error(`Found ${invalidRecords.length} invalid records`);
-      return res.status(400).json({
-        message: 'Invalid records: each record must have employee and courseTitle',
-        invalidCount: invalidRecords.length
-      });
-    }
-    
-    // Process records to ensure proper date formatting
-    const processedRecords = req.body.records.map(record => {
-      const processed = { ...record };
-      
-      // Convert date strings to Date objects
-      if (record.completionDate) {
-        processed.completionDate = new Date(record.completionDate);
-      }
-      
-      if (record.expiryDate) {
-        processed.expiryDate = new Date(record.expiryDate);
-      }
-      
-      return processed;
-    });
-    
-    // Calculate stats
-    const total = processedRecords.length;
-    const completed = processedRecords.filter(r => r.status === 'Completed').length;
-    const expired = processedRecords.filter(r => r.status === 'Expired').length;
-    
-    // Calculate upcoming renewals (within 90 days)
-    const now = new Date();
-    const ninetyDaysFromNow = new Date(now);
-    ninetyDaysFromNow.setDate(now.getDate() + 90);
-    
-    const upcomingRenewals = processedRecords
-      .filter(r => 
-        r.expiryDate && 
-        new Date(r.expiryDate) > now && 
-        new Date(r.expiryDate) <= ninetyDaysFromNow
-      )
-      .map(r => ({
-        employee: r.employee,
-        courseTitle: r.courseTitle,
-        expiryDate: r.expiryDate
-      }));
-    
-    // Build training data document
+
+    // Process records with standardized formatting
+    const { processedRecords, upcomingRenewals } = processRecords(records.data);
+
+    // Calculate statistics
+    const stats = calculateStats(processedRecords, upcomingRenewals);
+
+    // Build and save training data document
     const trainingData = {
       companyId,
       uploadDate: new Date(),
       records: processedRecords,
-      compliance: total > 0 ? Math.round((completed / total) * 100) : 0,
-      stats: {
-        total,
-        completed,
-        expired,
-        upcoming: upcomingRenewals.length
-      },
+      compliance: stats.compliance,
+      stats: stats,
       upcomingRenewals
     };
+
+    const newTrainingData = await TrainingData.create(trainingData);
     
-    console.log(`Processed ${total} records with ${completed} completed and ${expired} expired`);
-    
-    // Create a new training data document
-    const newTrainingData = new TrainingData(trainingData);
-    
-    // Save the new data
-    await newTrainingData.save();
-    console.log(`Training data saved with ID: ${newTrainingData._id}`);
-    
-    res.status(201).json({
+    console.log(`Training data saved with ID: ${newTrainingData._id}`, {
+      totalRecords: stats.total,
+      completed: stats.completed,
+      expired: stats.expired,
+      upcoming: stats.upcoming
+    });
+
+    return res.status(201).json({
+      success: true,
       message: 'Training data saved successfully',
       id: newTrainingData._id,
-      stats: {
-        total,
-        completed,
-        expired,
-        upcoming: upcomingRenewals.length
-      }
+      stats,
+      recordCount: processedRecords.length
     });
+
   } catch (error) {
     console.error('Error saving training data:', error);
     
-    // Handle validation errors specifically
     if (error.name === 'ValidationError') {
       return res.status(400).json({
+        success: false,
         message: 'Validation error',
         errors: Object.values(error.errors).map(e => e.message)
       });
     }
     
-    res.status(500).json({
+    return res.status(500).json({
+      success: false,
       message: 'Server error',
       error: error.message
     });
   }
 };
 
+// Helper functions
+
+const extractAndValidateRecords = (body) => {
+  // Handle both array input and object with records property
+  const records = Array.isArray(body.records) 
+    ? body.records 
+    : Array.isArray(body) ? body : [];
+
+  if (records.length === 0) {
+    return { isValid: false, message: 'No valid records provided' };
+  }
+
+  // Validate required fields
+  const invalidRecords = records.filter(
+    record => !record.employee || !record.courseTitle
+  );
+
+  if (invalidRecords.length > 0) {
+    console.error(`Found ${invalidRecords.length} invalid records`);
+    return { 
+      isValid: false, 
+      message: 'Invalid records: each record must have employee and courseTitle',
+      invalidCount: invalidRecords.length
+    };
+  }
+
+  return { isValid: true, data: records };
+};
+
+const processRecords = (records) => {
+  const now = new Date();
+  const ninetyDaysFromNow = new Date(now);
+  ninetyDaysFromNow.setDate(now.getDate() + 90);
+
+  const processedRecords = records.map(record => {
+    // Standardize record format
+    const processedRecord = {
+      employee: String(record.employee || '').trim(),
+      courseTitle: String(record.courseTitle || '').trim(),
+      status: ['Completed', 'Expired', 'In Progress'].includes(record.status) 
+        ? record.status 
+        : 'Completed',
+      department: String(record.department || '').trim(),
+      assignedBy: String(record.assignedBy || '').trim(),
+      notes: String(record.notes || '').trim()
+    };
+
+    // Process dates
+    processedRecord.completionDate = record.completionDate 
+      ? new Date(record.completionDate)
+      : null;
+      
+    processedRecord.expiryDate = record.expiryDate 
+      ? new Date(record.expiryDate)
+      : null;
+
+    return processedRecord;
+  });
+
+  // Calculate upcoming renewals
+  const upcomingRenewals = processedRecords
+    .filter(r => 
+      r.expiryDate && 
+      r.expiryDate > now && 
+      r.expiryDate <= ninetyDaysFromNow
+    )
+    .map(r => ({
+      employee: r.employee,
+      courseTitle: r.courseTitle,
+      expiryDate: r.expiryDate
+    }));
+
+  return { processedRecords, upcomingRenewals };
+};
+
+const calculateStats = (records, upcomingRenewals) => {
+  const total = records.length;
+  const completed = records.filter(r => r.status === 'Completed').length;
+  const expired = records.filter(r => r.status === 'Expired').length;
+  const compliance = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return {
+    total,
+    completed,
+    expired,
+    upcoming: upcomingRenewals.length,
+    compliance
+  };
+};
 // Get summary metrics for training data
 exports.getTrainingMetrics = async (req, res) => {
   try {

@@ -52,40 +52,31 @@ export const saveTrainingData = async (trainingData) => {
     // Ensure we have properly structured data
     const payload = {
       companyId: 'default',
-      // If trainingData.records exists, use it; otherwise use trainingData as records
-      records: trainingData.records && Array.isArray(trainingData.records) 
-        ? trainingData.records 
-        : (Array.isArray(trainingData) ? trainingData : []),
+      // Handle both array input and object with records property
+      records: Array.isArray(trainingData) ? trainingData : (trainingData.records || []),
       uploadDate: new Date().toISOString()
     };
     
-    // Check if we have records
-    if (!payload.records || payload.records.length === 0) {
+    // Validate we have records to save
+    if (payload.records.length === 0) {
       throw new Error('No training records to save');
     }
     
-    // Calculate stats if not provided
-    if (!trainingData.stats) {
-      const completed = payload.records.filter(r => r.status === 'Completed').length;
-      const expired = payload.records.filter(r => r.status === 'Expired').length;
-      
-      payload.stats = {
-        total: payload.records.length,
-        completed: completed,
-        expired: expired,
-        upcoming: 0 // We'll calculate this server-side
-      };
-      
-      payload.compliance = payload.records.length > 0 
-        ? Math.round((completed / payload.records.length) * 100) 
-        : 0;
-    } else {
-      // Use provided stats
-      payload.stats = trainingData.stats;
-      payload.compliance = trainingData.compliance || 0;
-    }
+    // Calculate stats
+    const completed = payload.records.filter(r => r.status === 'Completed').length;
+    const expired = payload.records.filter(r => r.status === 'Expired').length;
+    const total = payload.records.length;
     
-    console.log('Structured payload:', payload);
+    // Add stats to payload
+    payload.stats = {
+      total,
+      completed,
+      expired,
+      upcoming: 0 // Will be calculated server-side
+    };
+    
+    // Calculate compliance percentage
+    payload.compliance = total > 0 ? Math.round((completed / total) * 100) : 0;
     
     // Send to backend API
     const response = await fetch(`${api_url}/api/training`, {
@@ -95,38 +86,41 @@ export const saveTrainingData = async (trainingData) => {
     });
     
     if (!response.ok) {
-      console.error('Server response not OK:', response.status, response.statusText);
-      throw new Error(`Failed to save training data: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Server error response:', errorText);
+      throw new Error(`Failed to save training data: ${response.status} - ${errorText}`);
     }
     
     const result = await response.json();
     console.log('Training data saved successfully:', result);
     return result;
+    
   } catch (error) {
     console.error('Error saving training data:', error);
     
     // Fallback to localStorage if API fails
     try {
-      // Format the data consistently
-      const records = trainingData.records || trainingData;
+      // Get records from either the original input or the payload we created
+      const records = Array.isArray(trainingData) ? trainingData : 
+                     (trainingData.records || []);
       
-      // Ensure records is an array
+      // Ensure we have an array (empty array if invalid)
       const safeRecords = Array.isArray(records) ? records : [];
       
-      // Calculate stats
+      // Recalculate stats for local storage
       const total = safeRecords.length;
-      const completed = safeRecords.filter(r => r.status === 'Completed').length || 0;
-      const expired = safeRecords.filter(r => r.status === 'Expired').length || 0;
+      const completed = safeRecords.filter(r => r.status === 'Completed').length;
+      const expired = safeRecords.filter(r => r.status === 'Expired').length;
       
-      // Save structured data to localStorage
+      // Create storage payload
       const storagePayload = {
         companyId: 'default',
         records: safeRecords,
         uploadDate: new Date().toISOString(),
         stats: {
-          total: total,
-          completed: completed,
-          expired: expired,
+          total,
+          completed,
+          expired,
           upcoming: 0
         },
         compliance: total > 0 ? Math.round((completed / total) * 100) : 0
@@ -134,16 +128,19 @@ export const saveTrainingData = async (trainingData) => {
       
       localStorage.setItem('trainingData', JSON.stringify(storagePayload));
       
-      console.log('Training data saved to localStorage due to API error');
+      console.warn('Training data saved to localStorage due to API error');
       return { 
         success: true, 
         message: 'Training data saved locally (API unavailable)',
         local: true,
-        stats: storagePayload.stats
+        stats: storagePayload.stats,
+        records: storagePayload.records
       };
+      
     } catch (localError) {
       console.error('Failed to save to localStorage:', localError);
-      throw error; // Re-throw the original error
+      // Enhance the error with more context
+      throw new Error(`Failed to save training data: ${error.message} (Local storage also failed: ${localError.message})`);
     }
   }
 };

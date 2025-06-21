@@ -17,7 +17,7 @@ const TrainingRecordSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
-  expirationDate: {
+  expiryDate: {
     type: Date,
     default: null
   },
