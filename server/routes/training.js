@@ -79,7 +79,7 @@ router.post('/records', async (req, res) => {
     // Create new record object
     const newRecord = {
       employee: req.body.employee,
-      trainingType: req.body.courseTitle, // Map to the schema field
+      courseTitle: req.body.courseTitle, // Use correct field name
       status: req.body.status,
       completionDate: req.body.completionDate || null,
       expirationDate: req.body.expiryDate || null, // Map to the schema field

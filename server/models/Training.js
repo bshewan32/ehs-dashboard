@@ -41,7 +41,7 @@ const TrainingDataSchema = new mongoose.Schema({
   },
   upcomingRenewals: [{
     employee: String,
-    trainingType: String,
+    courseTitle: String,
     expirationDate: Date,
     daysRemaining: Number
   }],

@@ -156,6 +156,14 @@ const TrainingUploader = ({ onDataProcessed }) => {
         return;
       }
       
+      // Log the data structure being sent
+      console.log('Final data structure being sent:', {
+        totalRecords: trainingData.length,
+        sampleRecord: trainingData[0],
+        allRecordsHaveEmployee: trainingData.every(r => r.employee),
+        allRecordsHaveCourseTitle: trainingData.every(r => r.courseTitle)
+      });
+      
       // Send the processed data back to parent component
       onDataProcessed(trainingData);
       setUploading(false);
