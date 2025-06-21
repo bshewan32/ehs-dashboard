@@ -8,7 +8,7 @@ const TrainingRecordSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  trainingType: {
+  courseTitle: {
     type: String,
     required: true,
     trim: true
