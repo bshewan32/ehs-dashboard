@@ -1,96 +1,167 @@
 // server/routes/kpis.js
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 
-// In-memory storage for KPIs (replace with database in production)
-let kpis = [
-  {
-    id: 'nearMissRate',
-    _id: 'nearMissRate',
-    name: 'Near Miss Reporting Rate',
-    description: 'Percentage of near miss incidents reported relative to target reporting levels',
-    actual: 75,
-    target: 100,
-    unit: '%',
-    category: 'Safety',
-    frequency: 'Monthly',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    lastUpdated: new Date().toISOString()
+// KPI Schema
+const kpiSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true,
+    unique: true
   },
-  {
-    id: 'criticalRiskVerification',
-    _id: 'criticalRiskVerification',
-    name: 'Critical Risk Control Verification',
-    description: 'Percentage of critical risk controls verified as effective',
-    actual: 88,
-    target: 95,
-    unit: '%',
-    category: 'Safety',
-    frequency: 'Monthly',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    lastUpdated: new Date().toISOString()
+  name: {
+    type: String,
+    required: true
   },
-  {
-    id: 'electricalSafetyCompliance',
-    _id: 'electricalSafetyCompliance',
-    name: 'Electrical Safety Compliance',
-    description: 'Percentage compliance with electrical safety standards and procedures',
-    actual: 92,
-    target: 100,
-    unit: '%',
-    category: 'Safety',
-    frequency: 'Monthly',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    lastUpdated: new Date().toISOString()
+  description: {
+    type: String,
+    default: ''
+  },
+  actual: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  target: {
+    type: Number,
+    required: true
+  },
+  unit: {
+    type: String,
+    default: '%'
+  },
+  category: {
+    type: String,
+    default: 'Safety'
+  },
+  frequency: {
+    type: String,
+    default: 'Monthly'
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  lastUpdated: {
+    type: Date,
+    default: Date.now
   }
-];
+});
+
+// Create model (check if it already exists to avoid re-compilation error)
+const KPI = mongoose.models.KPI || mongoose.model('KPI', kpiSchema);
+
+// Middleware to log requests
+router.use((req, res, next) => {
+  console.log(`KPI API: ${req.method} ${req.originalUrl}`);
+  next();
+});
 
 // GET /api/kpis - Get all KPIs
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    console.log(`Fetching ${kpis.length} KPIs`);
+    console.log('Fetching all KPIs from database');
+    const kpis = await KPI.find().sort({ createdAt: -1 });
+    
+    // If no KPIs exist, create default ones
+    if (kpis.length === 0) {
+      console.log('No KPIs found, creating default KPIs');
+      const defaultKPIs = [
+        {
+          id: 'nearMissRate',
+          name: 'Near Miss Reporting Rate',
+          description: 'Percentage of near miss incidents reported relative to target reporting levels',
+          actual: 75,
+          target: 100,
+          unit: '%',
+          category: 'Safety',
+          frequency: 'Monthly',
+          isActive: true
+        },
+        {
+          id: 'criticalRiskVerification',
+          name: 'Critical Risk Control Verification',
+          description: 'Percentage of critical risk controls verified as effective',
+          actual: 88,
+          target: 95,
+          unit: '%',
+          category: 'Safety',
+          frequency: 'Monthly',
+          isActive: true
+        },
+        {
+          id: 'electricalSafetyCompliance',
+          name: 'Electrical Safety Compliance',
+          description: 'Percentage compliance with electrical safety standards and procedures',
+          actual: 92,
+          target: 100,
+          unit: '%',
+          category: 'Safety',
+          frequency: 'Monthly',
+          isActive: true
+        }
+      ];
+      
+      const createdKPIs = await KPI.insertMany(defaultKPIs);
+      console.log(`Created ${createdKPIs.length} default KPIs`);
+      return res.json(createdKPIs);
+    }
+    
+    console.log(`Returning ${kpis.length} KPIs`);
     res.json(kpis);
   } catch (error) {
     console.error('Error fetching KPIs:', error);
-    res.status(500).json({ error: 'Failed to fetch KPIs' });
+    res.status(500).json({ error: 'Failed to fetch KPIs', details: error.message });
   }
 });
 
 // GET /api/kpis/active - Get only active KPIs
-router.get('/active', (req, res) => {
+router.get('/active', async (req, res) => {
   try {
-    const activeKPIs = kpis.filter(kpi => kpi.isActive !== false);
-    console.log(`Fetching ${activeKPIs.length} active KPIs`);
+    console.log('Fetching active KPIs from database');
+    const activeKPIs = await KPI.find({ isActive: true }).sort({ createdAt: -1 });
+    console.log(`Returning ${activeKPIs.length} active KPIs`);
     res.json(activeKPIs);
   } catch (error) {
     console.error('Error fetching active KPIs:', error);
-    res.status(500).json({ error: 'Failed to fetch active KPIs' });
+    res.status(500).json({ error: 'Failed to fetch active KPIs', details: error.message });
   }
 });
 
 // GET /api/kpis/:id - Get specific KPI
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const kpi = kpis.find(k => k.id === req.params.id || k._id === req.params.id);
+    console.log(`Fetching KPI with id: ${req.params.id}`);
+    const kpi = await KPI.findOne({
+      $or: [
+        { id: req.params.id },
+        { _id: mongoose.Types.ObjectId.isValid(req.params.id) ? req.params.id : null }
+      ]
+    });
     
     if (!kpi) {
+      console.log(`KPI not found: ${req.params.id}`);
       return res.status(404).json({ error: 'KPI not found' });
     }
     
-    console.log(`Fetching KPI: ${kpi.name}`);
+    console.log(`Found KPI: ${kpi.name}`);
     res.json(kpi);
   } catch (error) {
     console.error('Error fetching KPI:', error);
-    res.status(500).json({ error: 'Failed to fetch KPI' });
+    res.status(500).json({ error: 'Failed to fetch KPI', details: error.message });
   }
 });
 
 // POST /api/kpis - Create new KPI
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
+    console.log('Creating new KPI:', req.body);
+    
     const {
       name,
       description,
@@ -114,13 +185,13 @@ router.post('/', (req, res) => {
     const kpiId = id || `kpi_${Date.now()}`;
 
     // Check if KPI with this ID already exists
-    if (kpis.find(k => k.id === kpiId || k._id === kpiId)) {
+    const existingKPI = await KPI.findOne({ id: kpiId });
+    if (existingKPI) {
       return res.status(409).json({ error: 'KPI with this ID already exists' });
     }
 
-    const newKPI = {
+    const newKPI = new KPI({
       id: kpiId,
-      _id: kpiId,
       name,
       description: description || '',
       actual: parseFloat(actual),
@@ -128,30 +199,29 @@ router.post('/', (req, res) => {
       unit: unit || '%',
       category: category || 'Safety',
       frequency: frequency || 'Monthly',
-      isActive: isActive !== undefined ? isActive : true,
-      createdAt: new Date().toISOString(),
-      lastUpdated: new Date().toISOString()
-    };
+      isActive: isActive !== undefined ? isActive : true
+    });
 
-    kpis.push(newKPI);
-    
-    console.log(`Created new KPI: ${newKPI.name}`);
-    res.status(201).json(newKPI);
+    const savedKPI = await newKPI.save();
+    console.log(`Created new KPI: ${savedKPI.name} (ID: ${savedKPI.id})`);
+    res.status(201).json(savedKPI);
   } catch (error) {
     console.error('Error creating KPI:', error);
-    res.status(500).json({ error: 'Failed to create KPI' });
+    
+    // Handle duplicate key error
+    if (error.code === 11000) {
+      return res.status(409).json({ error: 'KPI with this ID already exists' });
+    }
+    
+    res.status(500).json({ error: 'Failed to create KPI', details: error.message });
   }
 });
 
 // PUT /api/kpis/:id - Update KPI
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const kpiIndex = kpis.findIndex(k => k.id === req.params.id || k._id === req.params.id);
+    console.log(`Updating KPI with id: ${req.params.id}`, req.body);
     
-    if (kpiIndex === -1) {
-      return res.status(404).json({ error: 'KPI not found' });
-    }
-
     const {
       name,
       description,
@@ -163,73 +233,103 @@ router.put('/:id', (req, res) => {
       isActive
     } = req.body;
 
-    // Update KPI with new values
-    const updatedKPI = {
-      ...kpis[kpiIndex],
-      ...(name !== undefined && { name }),
-      ...(description !== undefined && { description }),
-      ...(actual !== undefined && { actual: parseFloat(actual) }),
-      ...(target !== undefined && { target: parseFloat(target) }),
-      ...(unit !== undefined && { unit }),
-      ...(category !== undefined && { category }),
-      ...(frequency !== undefined && { frequency }),
-      ...(isActive !== undefined && { isActive }),
-      lastUpdated: new Date().toISOString()
+    // Build update object with only provided fields
+    const updateData = {
+      lastUpdated: new Date()
     };
+    
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (actual !== undefined) updateData.actual = parseFloat(actual);
+    if (target !== undefined) updateData.target = parseFloat(target);
+    if (unit !== undefined) updateData.unit = unit;
+    if (category !== undefined) updateData.category = category;
+    if (frequency !== undefined) updateData.frequency = frequency;
+    if (isActive !== undefined) updateData.isActive = isActive;
 
-    kpis[kpiIndex] = updatedKPI;
+    const updatedKPI = await KPI.findOneAndUpdate(
+      {
+        $or: [
+          { id: req.params.id },
+          { _id: mongoose.Types.ObjectId.isValid(req.params.id) ? req.params.id : null }
+        ]
+      },
+      updateData,
+      { new: true, runValidators: true }
+    );
+    
+    if (!updatedKPI) {
+      console.log(`KPI not found for update: ${req.params.id}`);
+      return res.status(404).json({ error: 'KPI not found' });
+    }
     
     console.log(`Updated KPI: ${updatedKPI.name}`);
     res.json(updatedKPI);
   } catch (error) {
     console.error('Error updating KPI:', error);
-    res.status(500).json({ error: 'Failed to update KPI' });
+    res.status(500).json({ error: 'Failed to update KPI', details: error.message });
   }
 });
 
 // DELETE /api/kpis/:id - Delete KPI
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const kpiIndex = kpis.findIndex(k => k.id === req.params.id || k._id === req.params.id);
+    console.log(`Deleting KPI with id: ${req.params.id}`);
     
-    if (kpiIndex === -1) {
+    const deletedKPI = await KPI.findOneAndDelete({
+      $or: [
+        { id: req.params.id },
+        { _id: mongoose.Types.ObjectId.isValid(req.params.id) ? req.params.id : null }
+      ]
+    });
+    
+    if (!deletedKPI) {
+      console.log(`KPI not found for deletion: ${req.params.id}`);
       return res.status(404).json({ error: 'KPI not found' });
     }
-
-    const deletedKPI = kpis[kpiIndex];
-    kpis.splice(kpiIndex, 1);
     
     console.log(`Deleted KPI: ${deletedKPI.name}`);
     res.json({ message: 'KPI deleted successfully', kpi: deletedKPI });
   } catch (error) {
     console.error('Error deleting KPI:', error);
-    res.status(500).json({ error: 'Failed to delete KPI' });
+    res.status(500).json({ error: 'Failed to delete KPI', details: error.message });
   }
 });
 
 // PATCH /api/kpis/:id/toggle - Toggle KPI active status
-router.patch('/:id/toggle', (req, res) => {
+router.patch('/:id/toggle', async (req, res) => {
   try {
-    const kpiIndex = kpis.findIndex(k => k.id === req.params.id || k._id === req.params.id);
+    console.log(`Toggling KPI status for id: ${req.params.id}`);
     
-    if (kpiIndex === -1) {
+    const kpi = await KPI.findOne({
+      $or: [
+        { id: req.params.id },
+        { _id: mongoose.Types.ObjectId.isValid(req.params.id) ? req.params.id : null }
+      ]
+    });
+    
+    if (!kpi) {
       return res.status(404).json({ error: 'KPI not found' });
     }
 
-    kpis[kpiIndex].isActive = !kpis[kpiIndex].isActive;
-    kpis[kpiIndex].lastUpdated = new Date().toISOString();
+    kpi.isActive = !kpi.isActive;
+    kpi.lastUpdated = new Date();
     
-    console.log(`Toggled KPI status: ${kpis[kpiIndex].name} - ${kpis[kpiIndex].isActive ? 'Active' : 'Inactive'}`);
-    res.json(kpis[kpiIndex]);
+    const updatedKPI = await kpi.save();
+    
+    console.log(`Toggled KPI status: ${updatedKPI.name} - ${updatedKPI.isActive ? 'Active' : 'Inactive'}`);
+    res.json(updatedKPI);
   } catch (error) {
     console.error('Error toggling KPI status:', error);
-    res.status(500).json({ error: 'Failed to toggle KPI status' });
+    res.status(500).json({ error: 'Failed to toggle KPI status', details: error.message });
   }
 });
 
 // POST /api/kpis/bulk-update - Update multiple KPI values
-router.post('/bulk-update', (req, res) => {
+router.post('/bulk-update', async (req, res) => {
   try {
+    console.log('Bulk updating KPIs:', req.body);
+    
     const { updates } = req.body;
     
     if (!Array.isArray(updates)) {
@@ -239,23 +339,35 @@ router.post('/bulk-update', (req, res) => {
     const results = [];
     const errors = [];
 
-    updates.forEach(update => {
-      const { id, actual } = update;
-      const kpiIndex = kpis.findIndex(k => k.id === id || k._id === id);
-      
-      if (kpiIndex === -1) {
-        errors.push(`KPI with id ${id} not found`);
-        return;
+    for (const update of updates) {
+      try {
+        const { id, actual } = update;
+        
+        const updatedKPI = await KPI.findOneAndUpdate(
+          {
+            $or: [
+              { id: id },
+              { _id: mongoose.Types.ObjectId.isValid(id) ? id : null }
+            ]
+          },
+          {
+            actual: parseFloat(actual),
+            lastUpdated: new Date()
+          },
+          { new: true }
+        );
+        
+        if (updatedKPI) {
+          results.push(updatedKPI);
+        } else {
+          errors.push(`KPI with id ${id} not found`);
+        }
+      } catch (updateError) {
+        errors.push(`Error updating KPI ${update.id}: ${updateError.message}`);
       }
+    }
 
-      if (actual !== undefined) {
-        kpis[kpiIndex].actual = parseFloat(actual);
-        kpis[kpiIndex].lastUpdated = new Date().toISOString();
-        results.push(kpis[kpiIndex]);
-      }
-    });
-
-    console.log(`Bulk updated ${results.length} KPIs`);
+    console.log(`Bulk updated ${results.length} KPIs, ${errors.length} errors`);
     
     res.json({
       success: true,
@@ -265,12 +377,17 @@ router.post('/bulk-update', (req, res) => {
     });
   } catch (error) {
     console.error('Error bulk updating KPIs:', error);
-    res.status(500).json({ error: 'Failed to bulk update KPIs' });
+    res.status(500).json({ error: 'Failed to bulk update KPIs', details: error.message });
   }
 });
 
-module.exports = router;
+// Error handling middleware for this router
+router.use((error, req, res, next) => {
+  console.error('KPI Router Error:', error);
+  res.status(500).json({ 
+    error: 'KPI operation failed', 
+    details: error.message 
+  });
+});
 
-// To use this in your main server file (e.g., server.js or app.js), add:
-// const kpiRoutes = require('./routes/kpis');
-// app.use('/api/kpis', kpiRoutes);
+module.exports = router;
