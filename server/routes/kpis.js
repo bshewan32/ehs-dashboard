@@ -62,15 +62,15 @@ router.use((req, res, next) => {
   next();
 });
 
-// GET /api/kpis - Get all KPIs
+// GET /api/kpis - Get all KPIs (FIXED: changed from app.get to router.get)
 router.get('/', async (req, res) => {
   try {
-    console.log('Fetching all KPIs from database');
-    const kpis = await KPI.find().sort({ createdAt: -1 });
+    console.log('KPI GET request - fetching from MongoDB');
+    let kpis = await KPI.find().sort({ createdAt: -1 });
     
     // If no KPIs exist, create default ones
     if (kpis.length === 0) {
-      console.log('No KPIs found, creating default KPIs');
+      console.log('No KPIs found in database, creating defaults');
       const defaultKPIs = [
         {
           id: 'nearMissRate',
@@ -107,15 +107,14 @@ router.get('/', async (req, res) => {
         }
       ];
       
-      const createdKPIs = await KPI.insertMany(defaultKPIs);
-      console.log(`Created ${createdKPIs.length} default KPIs`);
-      return res.json(createdKPIs);
+      kpis = await KPI.insertMany(defaultKPIs);
+      console.log(`Created ${kpis.length} default KPIs in database`);
     }
     
-    console.log(`Returning ${kpis.length} KPIs`);
+    console.log(`Returning ${kpis.length} KPIs from database`);
     res.json(kpis);
   } catch (error) {
-    console.error('Error fetching KPIs:', error);
+    console.error('Error fetching KPIs from database:', error);
     res.status(500).json({ error: 'Failed to fetch KPIs', details: error.message });
   }
 });
