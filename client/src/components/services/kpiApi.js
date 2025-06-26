@@ -33,12 +33,20 @@ const getHeaders = () => {
   return headers;
 };
 
+// Force clear cache
+const clearCache = () => {
+  kpiCache.data = null;
+  kpiCache.timestamp = 0;
+  console.log('KPI cache cleared');
+};
+
 // Track if data has changed
 let dataHasChanged = false;
 
 // Mark data as changed
 export const markKPIDataChanged = () => {
   dataHasChanged = true;
+  clearCache();
   console.log('KPI data marked as changed');
 };
 
@@ -51,6 +59,7 @@ export const fetchKPIs = async (forceRefresh = false) => {
       return kpiCache.data;
     }
     
+    console.log('Fetching fresh KPI data from API...');
     dataHasChanged = false;
 
     const response = await fetch(`${api_url}/api/kpis`, {
@@ -109,6 +118,8 @@ export const fetchKPIs = async (forceRefresh = false) => {
 // Save a new KPI
 export const saveKPI = async (kpiData) => {
   try {
+    console.log('Saving KPI:', kpiData);
+    
     const response = await fetch(`${api_url}/api/kpis`, {
       method: 'POST',
       headers: getHeaders(),
@@ -124,9 +135,10 @@ export const saveKPI = async (kpiData) => {
     }
     
     const result = await response.json();
+    console.log('KPI saved successfully:', result);
     
-    // Clear cache after successful save
-    kpiCache.data = null;
+    // Force clear cache and mark data as changed
+    clearCache();
     markKPIDataChanged();
     
     return result;
@@ -147,8 +159,8 @@ export const saveKPI = async (kpiData) => {
       const updatedData = [...(existingData || []), newKPI];
       localStorage.setItem('kpiData', JSON.stringify(updatedData));
       
-      // Clear cache to force refresh
-      kpiCache.data = null;
+      // Force clear cache and mark data as changed
+      clearCache();
       markKPIDataChanged();
       
       console.warn('KPI saved to localStorage due to API error');
@@ -167,6 +179,8 @@ export const saveKPI = async (kpiData) => {
 // Update an existing KPI
 export const updateKPI = async (id, kpiData) => {
   try {
+    console.log('Updating KPI:', id, kpiData);
+    
     const response = await fetch(`${api_url}/api/kpis/${id}`, {
       method: 'PUT',
       headers: getHeaders(),
@@ -181,9 +195,10 @@ export const updateKPI = async (id, kpiData) => {
     }
     
     const result = await response.json();
+    console.log('KPI updated successfully:', result);
     
-    // Clear cache after successful update
-    kpiCache.data = null;
+    // Force clear cache and mark data as changed
+    clearCache();
     markKPIDataChanged();
     
     return result;
@@ -201,8 +216,8 @@ export const updateKPI = async (id, kpiData) => {
       
       localStorage.setItem('kpiData', JSON.stringify(updatedData));
       
-      // Clear cache to force refresh
-      kpiCache.data = null;
+      // Force clear cache and mark data as changed
+      clearCache();
       markKPIDataChanged();
       
       console.warn('KPI updated in localStorage due to API error');
@@ -220,6 +235,8 @@ export const updateKPI = async (id, kpiData) => {
 // Delete a KPI
 export const deleteKPI = async (id) => {
   try {
+    console.log('Deleting KPI:', id);
+    
     const response = await fetch(`${api_url}/api/kpis/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
@@ -230,9 +247,10 @@ export const deleteKPI = async (id) => {
     }
     
     const result = await response.json();
+    console.log('KPI deleted successfully:', result);
     
-    // Clear cache after successful deletion
-    kpiCache.data = null;
+    // Force clear cache and mark data as changed
+    clearCache();
     markKPIDataChanged();
     
     return result;
@@ -248,8 +266,8 @@ export const deleteKPI = async (id) => {
       
       localStorage.setItem('kpiData', JSON.stringify(updatedData));
       
-      // Clear cache to force refresh
-      kpiCache.data = null;
+      // Force clear cache and mark data as changed
+      clearCache();
       markKPIDataChanged();
       
       console.warn('KPI deleted from localStorage due to API error');
@@ -311,10 +329,12 @@ export const fetchKPIById = async (id) => {
 };
 
 // Get active KPIs for dashboard display
-export const getActiveKPIs = async () => {
+export const getActiveKPIs = async (forceRefresh = false) => {
   try {
-    const allKPIs = await fetchKPIs();
-    return allKPIs.filter(kpi => kpi.isActive !== false);
+    const allKPIs = await fetchKPIs(forceRefresh);
+    const activeKPIs = allKPIs.filter(kpi => kpi.isActive !== false);
+    console.log(`Found ${activeKPIs.length} active KPIs out of ${allKPIs.length} total`);
+    return activeKPIs;
   } catch (error) {
     console.error('Error fetching active KPIs:', error);
     return getDefaultKPIs();
@@ -409,4 +429,10 @@ export const syncKPIsWithMetrics = async (metricsData) => {
   } catch (error) {
     console.error('Error syncing KPIs with metrics:', error);
   }
+};
+
+// Export function to manually clear cache (for debugging)
+export const clearKPICache = () => {
+  clearCache();
+  markKPIDataChanged();
 };

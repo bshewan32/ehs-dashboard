@@ -79,6 +79,7 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
     }
 
     setSubmitting(true);
+    setErrors({}); // Clear any previous errors
 
     try {
       // Convert numeric fields
@@ -87,13 +88,35 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
         target: parseFloat(formData.target),
         actual: parseFloat(formData.actual),
         // Generate ID if not editing
-        id: kpi?.id || `kpi_${Date.now()}`
+        id: kpi?.id || kpi?._id || `kpi_${Date.now()}`
       };
 
-      await onSubmit(submitData);
+      console.log('KPIForm: Submitting data:', submitData);
+      
+      // Wait for the onSubmit to complete
+      const result = await onSubmit(submitData);
+      
+      console.log('KPIForm: Submit completed:', result);
+      
+      // If successful and not editing, reset form
+      if (!kpi) {
+        setFormData({
+          name: '',
+          description: '',
+          target: '',
+          actual: '',
+          unit: '%',
+          category: 'Safety',
+          frequency: 'Monthly',
+          isActive: true
+        });
+      }
+      
     } catch (error) {
       console.error('Error submitting KPI:', error);
-      setErrors({ submit: 'Failed to save KPI. Please try again.' });
+      setErrors({ 
+        submit: error.message || 'Failed to save KPI. Please try again.' 
+      });
     } finally {
       setSubmitting(false);
     }
@@ -107,7 +130,8 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
         </h2>
         <button 
           onClick={onCancel}
-          className="text-gray-500 hover:text-gray-700"
+          className="text-gray-500 hover:text-gray-700 transition-colors"
+          disabled={submitting}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -128,9 +152,10 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
               name="name"
               value={formData.name}
               onChange={handleChange}
+              disabled={submitting}
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
                 errors.name ? 'border-red-500' : 'border-gray-300'
-              }`}
+              } ${submitting ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               placeholder="e.g., Near Miss Reporting Rate"
             />
             {errors.name && (
@@ -148,8 +173,11 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
               name="description"
               value={formData.description}
               onChange={handleChange}
+              disabled={submitting}
               rows="3"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+                submitting ? 'bg-gray-100 cursor-not-allowed' : ''
+              }`}
               placeholder="Describe what this KPI measures and its importance"
             />
           </div>
@@ -165,11 +193,12 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
               name="target"
               value={formData.target}
               onChange={handleChange}
+              disabled={submitting}
               step="0.01"
               min="0"
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
                 errors.target ? 'border-red-500' : 'border-gray-300'
-              }`}
+              } ${submitting ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               placeholder="100"
             />
             {errors.target && (
@@ -188,11 +217,12 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
               name="actual"
               value={formData.actual}
               onChange={handleChange}
+              disabled={submitting}
               step="0.01"
               min="0"
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
                 errors.actual ? 'border-red-500' : 'border-gray-300'
-              }`}
+              } ${submitting ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               placeholder="85"
             />
             {errors.actual && (
@@ -210,9 +240,10 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
               name="unit"
               value={formData.unit}
               onChange={handleChange}
+              disabled={submitting}
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
                 errors.unit ? 'border-red-500' : 'border-gray-300'
-              }`}
+              } ${submitting ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             >
               <option value="%">Percentage (%)</option>
               <option value="count">Count</option>
@@ -236,7 +267,10 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
               name="category"
               value={formData.category}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              disabled={submitting}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+                submitting ? 'bg-gray-100 cursor-not-allowed' : ''
+              }`}
             >
               <option value="Safety">Safety</option>
               <option value="Training">Training</option>
@@ -257,7 +291,10 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
               name="frequency"
               value={formData.frequency}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              disabled={submitting}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+                submitting ? 'bg-gray-100 cursor-not-allowed' : ''
+              }`}
             >
               <option value="Daily">Daily</option>
               <option value="Weekly">Weekly</option>
@@ -276,7 +313,10 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
                 name="isActive"
                 checked={formData.isActive}
                 onChange={handleChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                disabled={submitting}
+                className={`h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded ${
+                  submitting ? 'cursor-not-allowed' : ''
+                }`}
               />
               <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
                 Active KPI (displayed on dashboard)
@@ -292,23 +332,43 @@ const KPIForm = ({ kpi, onSubmit, onCancel }) => {
           </div>
         )}
 
+        {/* Success Message */}
+        {!kpi && !submitting && !errors.submit && formData.name === '' && (
+          <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+            KPI saved successfully!
+          </div>
+        )}
+
         {/* Form Actions */}
         <div className="flex justify-end space-x-3">
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            disabled={submitting}
+            className={`px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${
+              submitting ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+            className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${
               submitting ? 'opacity-75 cursor-not-allowed' : ''
             }`}
           >
-            {submitting ? 'Saving...' : (kpi ? 'Update KPI' : 'Create KPI')}
+            {submitting ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Saving...
+              </span>
+            ) : (
+              kpi ? 'Update KPI' : 'Create KPI'
+            )}
           </button>
         </div>
       </form>

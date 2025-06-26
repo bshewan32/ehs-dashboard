@@ -2,24 +2,26 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getActiveKPIs, syncKPIsWithMetrics } from '../services/kpiApi';
 
-const KPIOverview = ({ metrics }) => {
+const KPIOverview = ({ metrics, refreshTrigger }) => {
   const [kpis, setKpis] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Load KPIs when component mounts or metrics change
-  const loadKPIs = useCallback(async () => {
+  // Load KPIs when component mounts, metrics change, or refresh is triggered
+  const loadKPIs = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
+      
+      console.log('KPIOverview: Loading KPIs...', forceRefresh ? '(forced refresh)' : '');
       
       // Sync any KPI updates from metrics first
       if (metrics) {
         await syncKPIsWithMetrics(metrics);
       }
       
-      // Fetch active KPIs
-      const activeKPIs = await getActiveKPIs();
+      // Fetch active KPIs (force refresh if requested)
+      const activeKPIs = await getActiveKPIs(forceRefresh);
       setKpis(activeKPIs || []);
       
       console.log('KPIOverview: Loaded', activeKPIs?.length || 0, 'active KPIs');
@@ -32,9 +34,23 @@ const KPIOverview = ({ metrics }) => {
     }
   }, [metrics]);
 
+  // Initial load
   useEffect(() => {
     loadKPIs();
   }, [loadKPIs]);
+
+  // Refresh when refreshTrigger changes (passed from parent)
+  useEffect(() => {
+    if (refreshTrigger) {
+      console.log('KPIOverview: Refresh triggered');
+      loadKPIs(true); // Force refresh
+    }
+  }, [refreshTrigger, loadKPIs]);
+
+  // Manual refresh handler
+  const handleRefresh = () => {
+    loadKPIs(true); // Force refresh
+  };
 
   // Render loading state
   if (loading) {
@@ -67,7 +83,7 @@ const KPIOverview = ({ metrics }) => {
           </svg>
           <p className="text-red-600 font-medium">{error}</p>
           <button 
-            onClick={loadKPIs}
+            onClick={handleRefresh}
             className="mt-2 text-sm text-blue-600 hover:text-blue-800"
           >
             Try again
@@ -98,14 +114,20 @@ const KPIOverview = ({ metrics }) => {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">KPI Metrics</h2>
         <button
-          onClick={loadKPIs}
-          className="text-sm text-gray-500 hover:text-gray-700 flex items-center"
+          onClick={handleRefresh}
+          className="text-sm text-gray-500 hover:text-gray-700 flex items-center transition-colors"
           title="Refresh KPIs"
+          disabled={loading}
         >
-          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg 
+            className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Refresh
+          {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
       
@@ -115,13 +137,18 @@ const KPIOverview = ({ metrics }) => {
           const colorClass = getColorByCompletion(kpi.actual, kpi.target);
           
           return (
-            <div key={kpi.id || index} className="relative">
+            <div key={kpi.id || kpi._id || index} className="relative">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1">
                   <span className="font-medium text-gray-700">{kpi.name}</span>
                   {kpi.category && (
                     <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                       {kpi.category}
+                    </span>
+                  )}
+                  {kpi._local && (
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                      Local
                     </span>
                   )}
                 </div>
