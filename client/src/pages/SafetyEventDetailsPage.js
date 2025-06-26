@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { fetchInspectionById } from '../components/services/api';
 import { updateFindingStatus } from '../components/services/api';
 
-export default function InspectionDetailsPage() {
+export default function SafetyEventDetailsPage() {
   const { id } = useParams();
   const [inspection, setInspection] = useState(null);
   const [loading, setLoading] = useState(true);

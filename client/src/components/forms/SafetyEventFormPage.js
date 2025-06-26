@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import InspectionForm from './SafetyEventFormPage';
 
-export default function InspectionFormPage() {
+export default function SafetyEventFormPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-5xl mx-auto">
