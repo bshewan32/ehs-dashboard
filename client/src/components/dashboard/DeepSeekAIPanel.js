@@ -49,9 +49,11 @@ const DeepSeekAIPanel = ({ metrics, selectedPeriod, companyName }) => {
         keyMetrics.kpis = [];
       }
       
-      // Create a string representation as the hash
+      // Create a string representation as the hash with sorted keys for consistency
       const hashString = JSON.stringify(keyMetrics, Object.keys(keyMetrics).sort());
-      console.log('DeepSeek: Generated hash for metrics:', hashString.substring(0, 100) + '...');
+      console.log('DeepSeek: Generated hash for metrics:');
+      console.log('DeepSeek: Key metrics object:', keyMetrics);
+      console.log('DeepSeek: Hash preview:', hashString.substring(0, 200) + '...');
       return hashString;
     } catch (err) {
       console.error('Error hashing metrics:', err);
@@ -223,8 +225,6 @@ const DeepSeekAIPanel = ({ metrics, selectedPeriod, companyName }) => {
       recommendations.push(`Near Miss Reporting Rate${companyContext} is strong at ${nearMissRate}%. This excellent reporting culture provides valuable data for preventing incidents. Focus on analyzing trends in the near miss data to identify systemic issues and ensure that all reports receive appropriate follow-up actions.`);
     }
     
-    // Only add incident-based recommendations if we don't have strong KPI data or if incidents are significant
-    if (incidentCount > 3) {
     // Only add incident-based recommendations if we don't have strong KPI data or if incidents are significant
     if (incidentCount > 3) {
       recommendations.push(`The number of incidents${companyContext}${periodContext} (${incidentCount}) suggests potential issues in risk controls. Consider conducting a comprehensive risk assessment focusing on areas with recurring incidents, and implement targeted control measures to address the root causes. Prioritize high-risk areas identified in previous reports to allocate resources effectively.`);
