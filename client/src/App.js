@@ -3,9 +3,9 @@ import './App.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import ReportForm from './components/forms/ReportForm';
-import InspectionsPage from './pages/SafetEventsPage';
+import InspectionsPage from './pages/SafetyEventsPage';
 import InspectionForm from './components/forms/SafetyEventFormPage'
-import InspectionDetailsPage from './pages/SafetyDetailsPage';
+import InspectionDetailsPage from './pages/SafetyEventDetailsPage';
 import ReportsPage from './pages/ReportsPage';
 import TrainingPage from './pages/TrainingPage';
 import KPIManagementPage from './pages/KPIManagementPage';
