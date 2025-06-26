@@ -36,14 +36,17 @@ const DeepSeekAIPanel = ({ metrics, selectedPeriod, companyName }) => {
         };
       }
       
-      // Include KPI data if available
+      // Include KPI data if available - ensure we capture all meaningful data
       if (metricsData.leading?.kpis && metricsData.leading.kpis.length > 0) {
         keyMetrics.kpis = metricsData.leading.kpis.map(kpi => ({
-          id: kpi.id,
-          name: kpi.name,
-          actual: kpi.actual,
-          target: kpi.target
+          id: kpi.id || 'unknown',
+          name: kpi.name || 'Unknown KPI',
+          actual: kpi.actual || 0,
+          target: kpi.target || 0,
+          unit: kpi.unit || ''
         }));
+      } else {
+        keyMetrics.kpis = [];
       }
       
       // Create a string representation as the hash
@@ -185,19 +188,56 @@ const DeepSeekAIPanel = ({ metrics, selectedPeriod, companyName }) => {
     
     // Get KPI values if available
     const kpis = metrics.leading?.kpis || [];
+    console.log('DeepSeek: Processing KPIs:', kpis);
+    
     const nearMissRate = kpis.find(k => k.id === 'nearMissRate')?.actual || 0;
     const criticalRiskVerification = kpis.find(k => k.id === 'criticalRiskVerification')?.actual || 0;
     const electricalSafetyCompliance = kpis.find(k => k.id === 'electricalSafetyCompliance')?.actual || 0;
     
+    console.log('DeepSeek: KPI values - Near Miss Rate:', nearMissRate, 'Critical Risk:', criticalRiskVerification, 'Electrical Safety:', electricalSafetyCompliance);
+    
     // Generate recommendations based on metrics
-    if (incidentCount > 5) {
-      recommendations.push(`The high number of incidents${companyContext}${periodContext} (${incidentCount}) suggests potential systemic issues in risk controls. Consider conducting a comprehensive risk assessment focusing on areas with recurring incidents, and implement targeted control measures to address the root causes. Prioritize high-risk areas identified in previous reports to allocate resources effectively.`);
+    console.log('DeepSeek: Generating recommendations with values:', {
+      incidentCount, nearMissCount, firstAidCount, medicalTreatmentCount,
+      trainingCompliance, nearMissRate, criticalRiskVerification, electricalSafetyCompliance
+    });
+    
+    // Prioritize KPI-based recommendations since we have actual data
+    if (criticalRiskVerification > 0 && criticalRiskVerification < 90) {
+      recommendations.push(`Critical Risk Control Verification${companyContext} is at ${criticalRiskVerification}%, below the target of 95%. Critical controls for high-consequence hazards should be prioritized to prevent serious injuries or fatalities. Implement a verification program that includes management reviews, scheduled inspections, and spot checks to ensure critical controls remain effective. Focus particularly on life-saving controls such as energy isolation, working at heights protections, and machine guarding.`);
+    } else if (criticalRiskVerification >= 90) {
+      recommendations.push(`Critical Risk Control Verification${companyContext} is performing well at ${criticalRiskVerification}%. To maintain this high performance, continue regular verification schedules and consider sharing best practices across other safety areas. Benchmark your verification process to identify opportunities for further improvement toward the 95% target.`);
     }
     
-    // Recommendation based on near misses
-    if (nearMissCount < 3) {
-      recommendations.push(`The low near miss reporting${companyContext}${periodContext} (${nearMissCount}) may indicate underreporting of safety concerns. Develop a positive safety culture by implementing a non-punitive reporting system and regularly emphasizing the importance of near miss reporting as a preventive measure. Consider introducing a simplified reporting process through mobile applications or QR codes to make reporting more accessible.`);
-    } else if (nearMissCount > 15) {
+    if (electricalSafetyCompliance > 0 && electricalSafetyCompliance < 95) {
+      recommendations.push(`Electrical Safety Compliance${companyContext} is at ${electricalSafetyCompliance}%, which requires immediate attention given the high-risk nature of electrical hazards. Conduct a thorough review of electrical safety procedures, ensure proper lockout/tagout implementation, and verify that all electrical work is performed by qualified personnel. Consider implementing an electrical safety audit program with specialized checklists to target common electrical hazards.`);
+    } else if (electricalSafetyCompliance >= 95) {
+      recommendations.push(`Electrical Safety Compliance${companyContext} is excellent at ${electricalSafetyCompliance}%. This strong performance in a high-risk area demonstrates effective safety management. Continue current practices and consider mentoring other safety areas to achieve similar high compliance levels.`);
+    }
+    
+    if (nearMissRate > 0 && nearMissRate < 50) {
+      recommendations.push(`Near Miss Reporting Rate${companyContext} is at ${nearMissRate}%, indicating significant room for improvement in proactive hazard identification. A higher reporting rate typically correlates with better safety outcomes as it allows for preventive action before incidents occur. Implement initiatives to encourage reporting such as positive recognition programs, simplified reporting processes, and regular communication about the value of near miss reporting.`);
+    } else if (nearMissRate >= 50 && nearMissRate < 80) {
+      recommendations.push(`Near Miss Reporting Rate${companyContext} is at ${nearMissRate}%, showing good progress but with room for improvement. Continue building the reporting culture by providing feedback on actions taken from reports and ensuring reporters see the value of their contributions. Consider expanding reporting categories to capture more types of precursor events.`);
+    } else if (nearMissRate >= 80) {
+      recommendations.push(`Near Miss Reporting Rate${companyContext} is strong at ${nearMissRate}%. This excellent reporting culture provides valuable data for preventing incidents. Focus on analyzing trends in the near miss data to identify systemic issues and ensure that all reports receive appropriate follow-up actions.`);
+    }
+    
+    // Only add incident-based recommendations if we don't have strong KPI data or if incidents are significant
+    if (incidentCount > 3) {
+    // Only add incident-based recommendations if we don't have strong KPI data or if incidents are significant
+    if (incidentCount > 3) {
+      recommendations.push(`The number of incidents${companyContext}${periodContext} (${incidentCount}) suggests potential issues in risk controls. Consider conducting a comprehensive risk assessment focusing on areas with recurring incidents, and implement targeted control measures to address the root causes. Prioritize high-risk areas identified in previous reports to allocate resources effectively.`);
+    } else if (incidentCount > 0 && incidentCount <= 3) {
+      recommendations.push(`The ${incidentCount} incident${incidentCount === 1 ? '' : 's'}${companyContext}${periodContext} should be thoroughly investigated to prevent recurrence. Each incident represents an opportunity to strengthen safety systems. Conduct root cause analysis and implement corrective actions, focusing on systemic improvements rather than individual blame.`);
+    }
+    
+    // Recommendation based on near misses - adjust thresholds for better sensitivity
+    if (nearMissCount === 0) {
+      recommendations.push(`The absence of near miss reports${companyContext}${periodContext} may indicate underreporting of safety concerns or exceptional safety performance. Validate your reporting systems and encourage proactive hazard identification. Consider implementing safety observation programs and regular safety tours to capture potential issues before they become incidents.`);
+    } else if (nearMissCount > 0 && nearMissCount < 5) {
+      recommendations.push(`The low number of near miss reports${companyContext}${periodContext} (${nearMissCount}) may indicate underreporting. Develop a positive safety culture by implementing a non-punitive reporting system and regularly emphasizing the importance of near miss reporting as a preventive measure. Consider introducing a simplified reporting process through mobile applications or QR codes to make reporting more accessible.`);
+    } else if (nearMissCount > 20) {
       recommendations.push(`While the high number of near misses${companyContext}${periodContext} (${nearMissCount}) demonstrates good reporting culture, it may indicate underlying hazards that require attention. Analyze the near miss data to identify patterns and implement preventive controls. Create a categorization system for near misses based on potential severity to prioritize follow-up actions appropriately.`);
     }
     
@@ -215,27 +255,25 @@ const DeepSeekAIPanel = ({ metrics, selectedPeriod, companyName }) => {
       recommendations.push(`There are ${trainingUpcoming} training certifications due for renewal soon${companyContext}. Being proactive about upcoming renewals helps maintain consistent compliance levels. Create a structured renewal schedule with specified timeframes for each certification type, and group similar certifications together when possible to optimize training resources and minimize operational disruptions.`);
     }
     
-    // First aid and medical treatment recommendation
-    if (firstAidCount > 0 || medicalTreatmentCount > 0) {
+    // First aid and medical treatment recommendation - be more nuanced
+    if (firstAidCount === 1 && medicalTreatmentCount === 0) {
+      recommendations.push(`The single first aid case${companyContext}${periodContext} should be investigated to understand the circumstances and prevent similar occurrences. While one incident may seem minor, it represents an opportunity to strengthen preventive measures. Review the specific hazards that led to this incident and assess whether additional controls or training are needed.`);
+    } else if (firstAidCount > 1 || medicalTreatmentCount > 0) {
       recommendations.push(`The presence of ${firstAidCount} first aid ${firstAidCount === 1 ? 'case' : 'cases'} and ${medicalTreatmentCount} medical ${medicalTreatmentCount === 1 ? 'treatment' : 'treatments'}${companyContext}${periodContext} indicates opportunities for injury prevention. Conduct a detailed analysis of these incidents to identify common causes and implement targeted prevention strategies. Consider ergonomic assessments in areas with repetitive strain injuries and review personal protective equipment requirements for tasks associated with cuts or abrasions.`);
     }
     
-    // KPI-based recommendations
-    if (criticalRiskVerification < 90) {
-      recommendations.push(`Critical Risk Control Verification${companyContext} is at ${criticalRiskVerification}%, below the target of 95%. Critical controls for high-consequence hazards should be prioritized to prevent serious injuries or fatalities. Implement a verification program that includes management reviews, scheduled inspections, and spot checks to ensure critical controls remain effective. Focus particularly on life-saving controls such as energy isolation, working at heights protections, and machine guarding.`);
-    }
-    
-    if (electricalSafetyCompliance < 95) {
-      recommendations.push(`Electrical Safety Compliance${companyContext} is at ${electricalSafetyCompliance}%, which requires immediate attention given the high-risk nature of electrical hazards. Conduct a thorough review of electrical safety procedures, ensure proper lockout/tagout implementation, and verify that all electrical work is performed by qualified personnel. Consider implementing an electrical safety audit program with specialized checklists to target common electrical hazards.`);
-    }
+    // KPI-based recommendations - removed duplicate since we handle these above
+    // These are now handled in the prioritized KPI section above
     
     // Risk score recommendation
     if (riskScore > 50) {
       recommendations.push(`The elevated risk score of ${riskScore}${companyContext} suggests a need for more robust risk management. Implement a formal risk register that tracks identified hazards, associated controls, and verification activities. Prioritize resources based on risk levels and ensure regular review of high-risk activities. Consider adopting a bow-tie analysis method for critical risks to visualize prevention and mitigation measures more effectively.`);
     }
     
-    // If no incidents/near misses
-    if (incidentCount === 0 && nearMissCount === 0) {
+    // If no incidents/near misses and good KPI performance
+    if (incidentCount === 0 && nearMissCount === 0 && criticalRiskVerification >= 90 && electricalSafetyCompliance >= 95) {
+      recommendations.push(`Excellent safety performance${companyContext}${periodContext} with no incidents, no near misses, and strong KPI performance. This demonstrates effective safety management systems. To maintain this excellence, continue current practices, conduct regular management reviews of safety performance, and consider sharing your successful approaches with other locations or departments.`);
+    } else if (incidentCount === 0 && nearMissCount === 0) {
       recommendations.push(`The absence of reported incidents and near misses${companyContext}${periodContext} may indicate excellent safety performance, but could also suggest reporting gaps. Conduct an audit to validate reporting processes and consider implementing positive incentives for safety observation reporting to ensure all safety concerns are captured. Benchmark your reporting rates against industry standards to evaluate reporting effectiveness.`);
     }
     
@@ -387,7 +425,12 @@ const DeepSeekAIPanel = ({ metrics, selectedPeriod, companyName }) => {
   // Fetch recommendations when metrics, period, or company changes
   useEffect(() => {
     console.log('DeepSeek: useEffect triggered - metrics changed');
-    getRecommendations();
+    // Add a small delay to ensure all data is loaded
+    const timeoutId = setTimeout(() => {
+      getRecommendations();
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
   }, [getRecommendations]);
 
   return (
