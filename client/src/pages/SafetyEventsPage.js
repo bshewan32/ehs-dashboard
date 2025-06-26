@@ -131,7 +131,7 @@ export default function SafetyEventsPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <Link to={`/inspections/${insp._id}`} className="text-blue-600 hover:text-blue-900">
+                    <Link to={`/safety-events/${insp._id}`} className="text-blue-600 hover:text-blue-900">
                       View Details
                     </Link>
                   </td>
