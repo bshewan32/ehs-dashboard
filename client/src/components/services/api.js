@@ -573,6 +573,17 @@ export const fetchInspectionById = async (id) => {
   }
 };
 
+// Fetch safety event by ID (currently aliases to inspection since routes haven't changed)
+export const fetchSafetyEventById = async (id) => {
+  try {
+    // For now, this is the same as fetchInspectionById since the routes haven't changed
+    return await fetchInspectionById(id);
+  } catch (error) {
+    console.error(`Error fetching safety event ID ${id}:`, error);
+    throw error;
+  }
+};
+
 // Submit inspection (no caching for POST)
 export const submitInspection = async (inspectionData) => {
   try {
