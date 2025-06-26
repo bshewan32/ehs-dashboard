@@ -1,16 +1,15 @@
+// client/src/App.js
 import React from 'react';
 import './App.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import ReportForm from './components/forms/ReportForm';
-import InspectionsPage from './pages/SafetyEventsPage';
-import InspectionForm from './components/forms/SafetyEventFormPage'
-import InspectionDetailsPage from './pages/SafetyEventDetailsPage';
+import SafetyEventsPage from './pages/SafetyEventsPage'; // Updated import
+import SafetyEventForm from './components/forms/SafetyEventFormPage'; // Updated import
+import SafetyEventDetailsPage from './pages/SafetyEventDetailsPage'; // Updated import
 import ReportsPage from './pages/ReportsPage';
 import TrainingPage from './pages/TrainingPage';
 import KPIManagementPage from './pages/KPIManagementPage';
-import SafetyEventForm from './components/forms/SafetyEventForm';
-
 
 function App() {
   return (
