@@ -60,8 +60,8 @@ const KPIManagementPage = () => {
       let result;
       if (editingKPI) {
         // Update existing KPI
-        console.log('KPIManagementPage: Updating KPI with ID:', editingKPI._id || editingKPI.id);
-        result = await updateKPI(editingKPI._id || editingKPI.id, kpiData);
+        console.log('KPIManagementPage: Updating KPI with ID:', editingKPI.id || editingKPI._id);
+        result = await updateKPI(editingKPI.id || editingKPI._id, kpiData);
       } else {
         // Create new KPI
         console.log('KPIManagementPage: Creating new KPI');
