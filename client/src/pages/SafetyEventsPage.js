@@ -49,9 +49,9 @@ export default function InspectionsPage() {
               Reports
             </button>
           </Link>
-          <Link to="/inspections/new">
+          <Link to="/safety-events/new">
             <button className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700">
-              + New Inspection
+              + New Safety Event
             </button>
           </Link>
         </div>
