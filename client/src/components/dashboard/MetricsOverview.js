@@ -1,3 +1,4 @@
+// client/src/components/dashboard/MetricsOverview.js
 import React, { useState, useEffect, useCallback } from 'react';
 
 const MetricsOverview = ({ metrics }) => {
@@ -14,7 +15,8 @@ const MetricsOverview = ({ metrics }) => {
           incidentCount: 0,
           nearMissCount: 0,
           firstAidCount: 0,
-          medicalTreatmentCount: 0
+          medicalTreatmentCount: 0,
+          lostTimeInjuryCount: 0
         }
       });
     }
@@ -27,7 +29,7 @@ const MetricsOverview = ({ metrics }) => {
 
   if (!localMetrics) return <div>Loading metrics...</div>;
 
-  // Safely access nested properties for lagging indicators only
+  // Safely access nested properties for lagging indicators
   const incidentCount = localMetrics.lagging?.incidentCount ?? 
                         localMetrics.totalIncidents ?? 0;
   const nearMissCount = localMetrics.lagging?.nearMissCount ?? 
@@ -36,13 +38,15 @@ const MetricsOverview = ({ metrics }) => {
                         localMetrics.firstAidCount ?? 0;
   const medicalTreatmentCount = localMetrics.lagging?.medicalTreatmentCount ?? 
                                localMetrics.medicalTreatmentCount ?? 0;
+  const lostTimeInjuryCount = localMetrics.lagging?.lostTimeInjuryCount ?? 
+                             localMetrics.lostTimeInjuryCount ?? 0;
 
   return (
     <div className="p-4 bg-white rounded shadow">
       <h2 className="text-xl font-semibold mb-4">Lagging Indicators</h2>
       <p className="text-sm text-gray-600 mb-4">Safety incidents and events that have already occurred</p>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-red-50 p-4 rounded-lg border border-red-200">
           <div className="flex items-center">
             <svg className="w-8 h-8 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,6 +91,18 @@ const MetricsOverview = ({ metrics }) => {
             <div>
               <h3 className="text-sm font-medium text-gray-500">Medical Treatments</h3>
               <p className="text-2xl font-bold text-blue-700">{medicalTreatmentCount}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+          <div className="flex items-center">
+            <svg className="w-8 h-8 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Lost Time Injuries</h3>
+              <p className="text-2xl font-bold text-purple-700">{lostTimeInjuryCount}</p>
             </div>
           </div>
         </div>

@@ -3,12 +3,13 @@ import './App.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import ReportForm from './components/forms/ReportForm';
-import InspectionsPage from './pages/InspectionsPage';
-import InspectionForm from './components/forms/InspectionFormPage'
-import InspectionDetailsPage from './pages/InspectionDetailsPage';
+import InspectionsPage from './pages/SafetEventsPage';
+import InspectionForm from './components/forms/SafetyEventFormPage'
+import InspectionDetailsPage from './pages/SafetyDetailsPage';
 import ReportsPage from './pages/ReportsPage';
 import TrainingPage from './pages/TrainingPage';
 import KPIManagementPage from './pages/KPIManagementPage';
+import SafetyEventForm from './components/forms/SafetyEventForm';
 
 
 function App() {
@@ -22,9 +23,9 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/report/new" element={<ReportForm />} />
-          <Route path="/inspections" element={<InspectionsPage />} />
-          <Route path="/inspections/new" element={<InspectionForm />} />
-          <Route path="/inspections/:id" element={<InspectionDetailsPage />} />
+          <Route path="/safety-events" element={<SafetyEventsPage />} />
+          <Route path="/safety-events/new" element={<SafetyEventForm />} />
+          <Route path="/safety-events/:id" element={<SafetyEventDetailsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/training" element={<TrainingPage />} />
           <Route path="/kpi-management" element={<KPIManagementPage />} />

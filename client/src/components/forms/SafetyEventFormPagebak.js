@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import InspectionForm from './InspectionForm';
+import InspectionForm from './SafetyEventFormPage';
 
 export default function InspectionFormPage() {
   return (

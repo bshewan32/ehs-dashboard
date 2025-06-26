@@ -37,14 +37,14 @@ export default function Navigation() {
                 </Link>
                 
                 <Link
-                  to="/inspections"
+                  to="/safety-events"
                   className={`${
-                    isActive('/inspections') 
+                    isActive('/safety-events') 
                       ? 'bg-gray-900 text-white' 
                       : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                   } px-3 py-2 rounded-md text-sm font-medium`}
                 >
-                  Inspections
+                  Safety Events
                 </Link>
                 
                 <Link

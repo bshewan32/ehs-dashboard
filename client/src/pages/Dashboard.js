@@ -532,7 +532,7 @@ export default function Dashboard() {
               </Link>
               <Link to="/inspections">
                 <button className="bg-green-100 text-green-800 px-3 py-2 rounded-md text-sm font-medium hover:bg-green-200">
-                  Inspections
+                  Events
                 </button>
               </Link>
               <Link to="/reports">

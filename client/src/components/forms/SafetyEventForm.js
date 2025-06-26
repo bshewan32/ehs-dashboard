@@ -1,12 +1,13 @@
+// client/src/components/forms/InspectionForm.js (or rename to SafetyEventForm.js)
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { submitInspection } from '../services/api';
 
-export default function InspectionForm() {
+export default function SafetyEventForm() {
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
-    inspector: '',
+    facilitator: '', // Changed from 'inspector' to 'facilitator'
     date: new Date().toISOString().split('T')[0], // Today's date as default
     location: '',
     type: '',
@@ -51,18 +52,23 @@ export default function InspectionForm() {
     setErrorMessage('');
 
     // Basic validation
-    if (!formData.inspector || !formData.location || !formData.type) {
+    if (!formData.facilitator || !formData.location || !formData.type) {
       setErrorMessage('Please fill in all required fields');
       setIsSubmitting(false);
       return;
     }
 
     try {
-      const response = await submitInspection(formData);
-      navigate('/inspections');
+      // Map facilitator back to inspector for API compatibility
+      const submissionData = {
+        ...formData,
+        inspector: formData.facilitator // API still expects 'inspector'
+      };
+      const response = await submitInspection(submissionData);
+      navigate('/safety-events'); // Updated navigation path
     } catch (err) {
-      console.error('Error submitting inspection:', err);
-      setErrorMessage('Failed to submit inspection. Please try again.');
+      console.error('Error submitting safety event:', err);
+      setErrorMessage('Failed to submit safety event. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -78,18 +84,19 @@ export default function InspectionForm() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Inspector Name *</label>
+          <label className="block text-sm font-medium text-gray-700">Facilitator/Lead *</label>
           <input 
-            name="inspector" 
-            value={formData.inspector} 
+            name="facilitator" 
+            value={formData.facilitator} 
             onChange={handleChange} 
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Person leading the event"
             required
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Inspection Date *</label>
+          <label className="block text-sm font-medium text-gray-700">Event Date *</label>
           <input 
             type="date" 
             name="date" 
@@ -106,14 +113,14 @@ export default function InspectionForm() {
             name="location" 
             value={formData.location} 
             onChange={handleChange} 
-            placeholder="Building/Area/Department" 
+            placeholder="Building/Area/Department/Meeting Room" 
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             required
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Inspection Type *</label>
+          <label className="block text-sm font-medium text-gray-700">Event Type *</label>
           <select 
             name="type" 
             value={formData.type} 
@@ -121,15 +128,56 @@ export default function InspectionForm() {
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             required
           >
-            <option value="">Select a type</option>
-            <option value="Weekly Safety Walkthrough">Weekly Safety Walkthrough</option>
-            <option value="Monthly Compliance Check">Monthly Compliance Check</option>
-            <option value="Quarterly Audit">Quarterly Audit</option>
-            <option value="Annual Safety Assessment">Annual Safety Assessment</option>
-            <option value="Post-Incident">Post-Incident</option>
-            <option value="Pre-Startup">Pre-Startup</option>
-            <option value="Equipment Inspection">Equipment Inspection</option>
-            <option value="Other">Other</option>
+            <option value="">Select event type</option>
+            
+            {/* Inspection/Audit Events */}
+            <optgroup label="Inspections & Audits">
+              <option value="Weekly Safety Walkthrough">Weekly Safety Walkthrough</option>
+              <option value="Monthly Compliance Check">Monthly Compliance Check</option>
+              <option value="Quarterly Safety Audit">Quarterly Safety Audit</option>
+              <option value="Annual Safety Assessment">Annual Safety Assessment</option>
+              <option value="Equipment Inspection">Equipment Inspection</option>
+              <option value="Pre-Startup Safety Review">Pre-Startup Safety Review</option>
+            </optgroup>
+            
+            {/* Incident-Related Events */}
+            <optgroup label="Incident Management">
+              <option value="Incident Investigation">Incident Investigation</option>
+              <option value="Incident Review Meeting">Incident Review Meeting</option>
+              <option value="Root Cause Analysis">Root Cause Analysis</option>
+              <option value="Post-Incident Assessment">Post-Incident Assessment</option>
+              <option value="Corrective Action Review">Corrective Action Review</option>
+            </optgroup>
+            
+            {/* Return to Work & Wellness */}
+            <optgroup label="Return to Work & Wellness">
+              <option value="Return to Work Meeting">Return to Work Meeting</option>
+              <option value="Modified Duty Assessment">Modified Duty Assessment</option>
+              <option value="Fitness for Duty Evaluation">Fitness for Duty Evaluation</option>
+              <option value="Workplace Accommodation Review">Workplace Accommodation Review</option>
+            </optgroup>
+            
+            {/* Training & Communication */}
+            <optgroup label="Training & Communication">
+              <option value="Safety Training Session">Safety Training Session</option>
+              <option value="Safety Toolbox Talk">Safety Toolbox Talk</option>
+              <option value="Emergency Drill">Emergency Drill</option>
+              <option value="Safety Committee Meeting">Safety Committee Meeting</option>
+              <option value="Safety Communication Session">Safety Communication Session</option>
+            </optgroup>
+            
+            {/* Risk Management */}
+            <optgroup label="Risk Management">
+              <option value="Job Safety Analysis">Job Safety Analysis (JSA)</option>
+              <option value="Risk Assessment">Risk Assessment</option>
+              <option value="Hazard Identification Session">Hazard Identification Session</option>
+              <option value="Safety Planning Meeting">Safety Planning Meeting</option>
+            </optgroup>
+            
+            {/* Other */}
+            <optgroup label="Other">
+              <option value="Other Safety Event">Other Safety Event</option>
+            </optgroup>
           </select>
         </div>
       </div>
@@ -142,12 +190,12 @@ export default function InspectionForm() {
           onChange={handleChange}
           rows="3" 
           className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          placeholder="Additional observations or context"
+          placeholder="Key discussion points, decisions made, or additional context"
         ></textarea>
       </div>
 
       <div className="mt-6 border-t border-gray-200 pt-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Findings ({formData.findings.length})</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Action Items & Findings ({formData.findings.length})</h3>
         
         {formData.findings.length > 0 && (
           <div className="mb-6 bg-gray-50 p-4 rounded-md">
@@ -164,14 +212,14 @@ export default function InspectionForm() {
                           ? 'bg-orange-100 text-orange-800' 
                           : 'bg-green-100 text-green-800'
                       }`}>
-                        {item.severity} severity
+                        {item.severity} priority
                       </span>
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         item.resolved 
                           ? 'bg-green-100 text-green-800' 
                           : 'bg-yellow-100 text-yellow-800'
                       }`}>
-                        {item.resolved ? 'Resolved' : 'Unresolved'}
+                        {item.resolved ? 'Completed' : 'Pending'}
                       </span>
                     </div>
                   </div>
@@ -191,20 +239,20 @@ export default function InspectionForm() {
         )}
         
         <div className="bg-gray-50 p-4 rounded-md">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">Add New Finding</h4>
+          <h4 className="text-sm font-medium text-gray-700 mb-3">Add Action Item/Finding</h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Issue Description</label>
+              <label className="block text-xs text-gray-500 mb-1">Action Item or Finding</label>
               <input 
                 name="issue" 
                 value={finding.issue} 
                 onChange={handleFindingChange} 
-                placeholder="Describe the safety issue or hazard"
+                placeholder="Describe the action item, finding, or recommendation"
                 className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Severity</label>
+              <label className="block text-xs text-gray-500 mb-1">Priority</label>
               <select 
                 name="severity" 
                 value={finding.severity} 
@@ -227,7 +275,7 @@ export default function InspectionForm() {
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
             <label htmlFor="resolved" className="ml-2 block text-sm text-gray-900">
-              Already Resolved
+              Already Completed
             </label>
           </div>
           <div className="mt-3">
@@ -239,7 +287,7 @@ export default function InspectionForm() {
               <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              Add Finding
+              Add Action Item
             </button>
           </div>
         </div>
@@ -248,7 +296,7 @@ export default function InspectionForm() {
       <div className="flex justify-end mt-8 pt-4 border-t border-gray-200">
         <button 
           type="button" 
-          onClick={() => navigate('/inspections')}
+          onClick={() => navigate('/safety-events')}
           className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 mr-3"
         >
           Cancel
@@ -260,7 +308,7 @@ export default function InspectionForm() {
             isSubmitting ? 'opacity-75 cursor-not-allowed' : ''
           }`}
         >
-          {isSubmitting ? 'Submitting...' : 'Submit Inspection'}
+          {isSubmitting ? 'Submitting...' : 'Submit Safety Event'}
         </button>
       </div>
     </form>
